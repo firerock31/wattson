@@ -2051,7 +2051,7 @@ def generate() -> None:
         "__LOCATION__": location_html,
         "__IDLESTAT__": idle_stat,
         "__LIFEMI__": f"{lifetime_mpk:.2f}" if lifetime_mpk else "-",
-        "__LIFESUB__": (f"{agg['m']:.1f} mi tracked" if agg["m"] else ""),
+        "__LIFESUB__": (f"{float(os.environ.get('WATTSON_DEMO_LIFETIME_MI', agg['m'])):.1f} mi tracked" if agg["m"] else ""),
         "__TRIPMONTH__": trip_month_html,
         "__TRIPS__": trips_html,
         "__BATTERYNOTE__": batt_note,

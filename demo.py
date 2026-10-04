@@ -105,7 +105,7 @@ WH_PER_MI = 320.0
 USABLE_KWH = 87.9
 HOME_KW = 11.0
 CHARGE_TARGET = 90.0
-RATED_RANGE_MI = 320.0
+RATED_RANGE_MI = 336.0
 
 
 def haversine_mi(a, b):
@@ -122,7 +122,7 @@ class Sim:
     def __init__(self, start_ts):
         self.ts = start_ts
         self.soc = 90.0
-        self.odo_m = 8000 * 1609.344
+        self.odo_m = 1314 * 1609.344
         self.lat, self.lon = PLACES["home"][1], PLACES["home"][2]
         self.snaps = []
         self.rng = random.Random(42)
@@ -130,7 +130,7 @@ class Sim:
 
     def cap_kwh(self):
         # Slight pack degradation over the demo window (for the trend chart)
-        return USABLE_KWH - self.day_index * 0.015
+        return 91.5 - self.day_index * 0.015
 
     def emit(self, gear, speed=None, charger_state=None, power_kw=None,
              geo_label=None, cloud_online=1):
@@ -326,6 +326,7 @@ def main():
     os.environ["RIVIAN_VEHICLE_NAME"] = VEHICLE
     os.environ["WATTSON_TIMEZONE"] = "America/Los_Angeles"
     os.environ["WATTSON_DEMO"] = "1"
+    os.environ["WATTSON_DEMO_LIFETIME_MI"] = "1035"
     os.environ["RIVIAN_REPORT_PATH"] = str(out / "www" / "rivian-dashboard.html")
 
     # Fresh DB
