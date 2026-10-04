@@ -12,7 +12,9 @@ import urllib.parse
 import urllib.request
 from datetime import datetime
 
-from config import LOCAL_TZ_API = "https://api.open-meteo.com/v1/forecast"
+from config import LOCAL_TZ
+
+_API = "https://api.open-meteo.com/v1/forecast"
 _NEG_TTL = 3600  # seconds to wait before retrying a failed (day, cell)
 _neg = {}  # (day, lat_r, lon_r) -> timestamp of last failure
 
@@ -26,10 +28,10 @@ def _fetch_day(day, lat, lon):
         "end_date": day,
         "hourly": "temperature_2m",
         "temperature_unit": "fahrenheit",
-        "timezone": "America/Los_Angeles",
+        "timezone": LOCAL_TZ.key,
     })
     req = urllib.request.Request(
-        _API + "?" + q, headers={"User-Agent": "rivian-tracker/1.0"})
+        _API + "?" + q, headers={"User-Agent": "Wattson/1.0 (https://github.com/firerock31/wattson)"})
     with urllib.request.urlopen(req, timeout=20) as r:
         data = json.load(r)
     hourly = data.get("hourly") or {}

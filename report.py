@@ -1815,7 +1815,7 @@ def generate() -> None:
     if len(pack_charts) > 1:
         pack_seg = ('<div class="seg" id="packseg">' + "".join(
             f'<button data-n="{k}"'
-            f'{" class=\"on\"" if k == "All" else ""}>{k}</button>'
+            f"{' class=\"on\"' if k == 'All' else ''}>{k}</button>"
             for k in pack_charts) + '</div>')
         pack_chart = pack_seg + "".join(
             f'<div id="pack{k}"{" hidden" if k != "All" else ""}>'
@@ -1950,7 +1950,7 @@ def generate() -> None:
         trend_bars = (
             '<div class="seg" id="trendseg">' + "".join(
                 f'<button data-n="{k}"'
-                f'{" class=\"on\"" if k == first_key else ""}>'
+                f"{' class=\"on\"' if k == first_key else ''}>"
                 f'{trend_labels.get(k, k)}</button>'
                 for k in trend_ranges) + '</div>' + "".join(
                 f'<div id="trend{k}"{" hidden" if k != first_key else ""}>'

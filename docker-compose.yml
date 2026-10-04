@@ -18,6 +18,7 @@ services:
     volumes:
       - ./data:/data
       - ./www:/app/www
+      - ./assets:/app/assets:ro
     restart: unless-stopped
 
   web:
@@ -26,6 +27,7 @@ services:
       - "127.0.0.1:8080:80"
     volumes:
       - ./www:/usr/share/nginx/html:ro
+      - ./static:/usr/share/nginx/html-static:ro
       - ./web/nginx.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
       - tracker

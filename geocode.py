@@ -12,7 +12,7 @@ import urllib.request
 from db import get_place_entry, set_place
 
 ZOOM = 16  # street-level detail
-_UA = "Wattson/1.0"
+_UA = "Wattson/1.0 (https://github.com/firerock31/wattson)"
 RETRY_FAILED_AFTER = 3600  # seconds before retrying a failed lookup
 _last_call = 0.0
 

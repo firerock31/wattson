@@ -81,6 +81,7 @@ locally: your data never leaves your machine.
 |---|---|---|
 | `RIVIAN_HOME_LAT` / `RIVIAN_HOME_LON` | Yes | Home coordinates (decimal degrees), for home-charge detection |
 | `RIVIAN_HOME_KWH_RATE` | No | Your all-in $/kWh home rate, for charging cost (default `0.30`) |
+| `WATTSON_TIMEZONE` | No | IANA timezone for dashboard dates/times (default `America/Los_Angeles`) |
 | `RIVIAN_VEHICLE_NAME` | No | Dashboard display name (defaults to your Rivian account name) |
 
 Drop a `hero.webp` image of your car in `assets/` to customize the dashboard
