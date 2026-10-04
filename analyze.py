@@ -13,14 +13,12 @@ Drains: long parked gaps (sleep) with measurable SoC loss.
 import math
 from collections import defaultdict
 from datetime import datetime
-from zoneinfo import ZoneInfo
 
 import weather
 from config import (DC_FAST_MIN_KW, USABLE_KWH,
-                    ODOMETER_METERS_PER_UNIT, TRIP_MIN_SECONDS)
+                    ODOMETER_METERS_PER_UNIT, TRIP_MIN_SECONDS,
+                    LOCAL_TZ)
 from db import connect, init, rebuild_derived
-
-LOCAL_TZ = ZoneInfo("America/Los_Angeles")
 
 DRIVE_GEARS = {"D", "DRIVE", "R", "REVERSE"}
 PARKED_GEARS = {"P", "PARK", "N", "NEUTRAL", ""}

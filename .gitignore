@@ -17,6 +17,10 @@ tokens.enc
 *.pid
 *heartbeat*
 NEEDS_REAUTH
+poller_state.json
+drive_watch.json
+proximity_test.json
+tile_cache_esri/
 
 # OS
 .DS_Store

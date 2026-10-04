@@ -8,7 +8,7 @@ Data semantics:
 - Trip durations marked ~ are poll-bracketed upper bounds, not drive time.
 - Energy math uses Rivian's rated 87.9 kWh usable capacity (the API's
   batteryCapacity=91.4 is stored raw for the pack-health trend only).
-  Validated Sep 14, 2026 against the car's own trip meter; ~4% over-read
+  Validated against the car's own trip meter; a ~4% over-read
   vs the car remains unexplained.
 - Averages always state their sample size.
 - Wake-up counts are derived from the SoC curve and only register at
@@ -23,17 +23,14 @@ import time
 from collections import defaultdict
 from datetime import datetime, timedelta
 from pathlib import Path
-from zoneinfo import ZoneInfo
 
 from analyze import activity_segments
 from config import (HOME_LAT, HOME_LON,
                     ODOMETER_METERS_PER_UNIT,
                     USABLE_KWH, HOME_KWH_RATE, VEHICLE_NAME,
-                    REPORT_PATH, TOKENS_PATH)
+                    REPORT_PATH, TOKENS_PATH, LOCAL_TZ)
 from crypto import unseal
 from db import connect
-
-LOCAL_TZ = ZoneInfo("America/Los_Angeles")
 
 GREEN = "#7ed321"
 AMBER = "#f5a623"

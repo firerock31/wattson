@@ -41,7 +41,7 @@ def _is_unauthenticated(exc: BaseException) -> bool:
 
 
 async def _fetch(vehicle_id: str, user_session_token: str) -> dict:
-    # trust_env=True so the sandbox egress proxy (HTTPS_PROXY) is honored.
+    # trust_env=True so standard HTTPS_PROXY environment variables are honored.
     async with aiohttp.ClientSession(trust_env=True) as session:
         client = Rivian(session=session)
         await client.create_csrf_token()

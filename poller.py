@@ -3,8 +3,8 @@
 Two modes:
 - default: a single poll (manual runs, backfills).
 - --burst: loop for --minutes (default 48), polling every --interval
-  seconds (default 120, with jitter). One AI wake produces ~24 snapshots,
-  so the hourly cron gets 2-minute data density at flat AI cost. Each
+  seconds (default 120, with jitter). One burst produces ~24 snapshots,
+  so an hourly restart gets 2-minute data density. Each
   snapshot commits immediately, so a worker killed mid-burst loses only
   the polls it never ran; derive + report run once at the end.
 
@@ -41,14 +41,14 @@ MOVE_GPS_MI = 0.06  # ~100 m; parked GPS jitter stays well under this
 def _require_home() -> None:
     """Fail fast if home coordinates aren't configured.
 
-    They live in /etc/rivian-tracker.env on the VM (see config.py), never
+    They live in the .env file (see config.py), never
     in source. Without them home detection silently degrades, which is
     worse than refusing to run.
     """
     if math.isnan(HOME_LAT) or math.isnan(HOME_LON):
         raise SystemExit(
             "RIVIAN_HOME_LAT/RIVIAN_HOME_LON not set: add them to "
-            "/etc/rivian-tracker.env and restart.")
+            ".env and restart.")
 
 
 def _burst_interval(last_snap: dict | None, prev_snap: dict | None,
@@ -125,7 +125,7 @@ def main() -> None:
     interval = poll_interval(state.get("last_power"), state.get("last_gear"),
                              state.get("last_speed"))
     # The cloud cache can report stale gear/power while the odometer keeps
-    # moving (seen 2026-09-12: gear=None mid-drive). An odometer increase
+    # moving (seen in testing: gear=None mid-drive). An odometer increase
     # between the last two polls means the car is driving: poll fast.
     prev_odo = state.get("prev_odo")
     last_odo = state.get("last_odo")
@@ -179,7 +179,7 @@ def main() -> None:
 
 def burst_main(minutes: float = 48, interval: float = 120,
                dry_run: bool = False) -> None:
-    """One AI wake, many polls: loop for ``minutes``, polling every
+    """One burst, many polls: loop for ``minutes``, polling every
     ``interval`` seconds with jitter, dropping to 30 seconds while the car
     is moving (odometer up or GPS moved ~100 m between polls).
 

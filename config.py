@@ -1,6 +1,7 @@
 """Shared configuration for Wattson, the open-source Rivian tracker."""
 import os
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 BASE = Path(__file__).resolve().parent
 DB_PATH = Path(os.environ.get("RIVIAN_DB_PATH", BASE / "rivian.db"))
@@ -32,6 +33,9 @@ HOME_KWH_RATE = float(os.environ.get("RIVIAN_HOME_KWH_RATE", "0.30"))
 # Display name for the dashboard hero. Falls back to the vehicle name on
 # your Rivian account, then to a generic label.
 VEHICLE_NAME = os.environ.get("RIVIAN_VEHICLE_NAME", "")
+# Local timezone for dashboard dates/times (IANA name).
+LOCAL_TZ = ZoneInfo(os.environ.get("WATTSON_TIMEZONE",
+                                  "America/Los_Angeles"))
 
 # Subset of GraphQL vehicle-state properties we poll (keeps payloads small).
 # NOTE: "powerKW" is NOT a valid vehicleState field (Rivian returns
@@ -68,7 +72,7 @@ POLL_INTERVAL_ASLEEP = 1800  # asleep: heartbeat only, don't delay deep sleep
 TRIP_MIN_SECONDS = 3 * 60
 
 # gnssSpeed above this means the car is moving. Unit unconfirmed (m/s? mph?);
-# set from the Sep 13 diagnostic drive, kept small until then.
+# kept small.
 SPEED_DRIVE_EPS = 0.5
 
 # Peak charge power at or above this means DC fast charging; below is AC
@@ -78,10 +82,11 @@ DC_FAST_MIN_KW = 20.0
 # Usable battery capacity (kWh) for energy math. Rivian rates the R2 at
 # 87.9 kWh usable (their support page); the API's batteryCapacity=91.4 sits
 # between usable and the ~94 kWh gross, so all SoC-derived kWh figures use
-# 87.9. Verified Sep 14 2026 against the car's own trip meter (1.3% SoC
-# drop read 1.1 kWh by the car, implying ~88 kWh, not 91.4).
+# 87.9. Cross-checked against the car's own trip meter (a 1.3% SoC
+# drop read ~1.1 kWh, implying ~88 kWh usable, not 91.4).
 USABLE_KWH = 87.9
 
-# vehicleMileage unit: the API reports a raw number; observed ~163000 on a
-# nearly-new R2, consistent with meters. Confirm against the in-app reading.
+# vehicleMileage unit: the API reports a raw number; a reading in the
+# hundreds of thousands on a new vehicle is consistent with meters.
+# Confirm against the in-app odometer.
 ODOMETER_METERS_PER_UNIT = 1.0

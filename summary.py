@@ -6,13 +6,10 @@ import sys
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
-from zoneinfo import ZoneInfo
-
-LOCAL_TZ = ZoneInfo("America/Los_Angeles")
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from config import FLAG_REAUTH
+from config import FLAG_REAUTH, LOCAL_TZ
 from db import connect
 from analyze import drain_baseline
 import json

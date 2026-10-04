@@ -21,7 +21,7 @@ async def main() -> None:
     email = input("Rivian account email: ").strip()
     password = getpass.getpass("Rivian password (used once, never stored): ")
 
-    # trust_env=True so the sandbox egress proxy (HTTPS_PROXY) is honored.
+    # trust_env=True so standard HTTPS_PROXY environment variables are honored.
     async with aiohttp.ClientSession(trust_env=True) as session:
         client = Rivian(session=session)
         await client.create_csrf_token()

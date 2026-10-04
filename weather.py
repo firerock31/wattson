@@ -11,10 +11,8 @@ import time
 import urllib.parse
 import urllib.request
 from datetime import datetime
-from zoneinfo import ZoneInfo
 
-LOCAL_TZ = ZoneInfo("America/Los_Angeles")
-_API = "https://api.open-meteo.com/v1/forecast"
+from config import LOCAL_TZ_API = "https://api.open-meteo.com/v1/forecast"
 _NEG_TTL = 3600  # seconds to wait before retrying a failed (day, cell)
 _neg = {}  # (day, lat_r, lon_r) -> timestamp of last failure
 
