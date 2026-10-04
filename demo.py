@@ -181,10 +181,11 @@ class Sim:
         if minutes <= 0:
             return
         # Mid-dwell heartbeats: car is asleep by now (arrival was awake).
+        # 10-min cadence keeps gaps under the 15-min unknown threshold.
         elapsed = 0
-        while elapsed + 30 < minutes:
-            self.ts += 30 * 60
-            elapsed += 30
+        while elapsed + 10 < minutes:
+            self.ts += 10 * 60
+            elapsed += 10
             self.emit(gear="P", geo_label=label, cloud_online=0)
         self.ts += (minutes - elapsed) * 60
         # Departure snapshot: trip bracket lands at drive start.
@@ -239,23 +240,27 @@ class Sim:
         if bed < dt:
             bed += timedelta(days=1)
         # Parked snapshots until bedtime: first awake, then asleep.
-        # Slight drain splits the charge session from the parked tail.
         first = True
         while self.ts < bed.timestamp():
-            self.ts = min(self.ts + 1800, bed.timestamp())
+            self.ts = min(self.ts + 600, bed.timestamp())
             if not first:
-                self.soc -= 0.06
+                self.soc -= 0.02
             self.emit(gear="P", geo_label="Home",
                       cloud_online=1 if first else 0)
             first = False
+        # Pre-charge dip snapshot so the charge session splits from the
+        # parked tail (derive splits on >0.05% SoC drops).
+        if charge:
+            self.soc -= 0.08
+            self.emit(gear="P", geo_label="Home", cloud_online=0)
         kwh = 0.0
         if charge:
             kwh = self.charge_home()
         # Sleep till 7am with vampire drain (~0.18%/hr)
         wake = (bed + timedelta(hours=8)).timestamp()
         while self.ts < wake:
-            self.ts = min(self.ts + 3600, wake)
-            self.soc -= 0.18
+            self.ts = min(self.ts + 600, wake)
+            self.soc -= 0.03
             self.emit(gear="P", geo_label="Home", cloud_online=0)
         return kwh
 
