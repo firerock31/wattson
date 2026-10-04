@@ -1,0 +1,17 @@
+# Pinned from the working local venv (Python 3.12). Install with:
+#   python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+aiohappyeyeballs==2.7.1
+aiohttp==3.14.3
+aiosignal==1.4.0
+attrs==26.1.0
+cffi==2.1.1
+cryptography==50.0.1
+frozenlist==1.8.0
+idna==3.19
+multidict==6.8.0
+pillow==12.3.0
+propcache==0.5.2
+pycparser==3.0
+rivian-python-client==2.1.0
+typing_extensions==4.16.0
+yarl==1.24.5

@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Wattson runtime (never commit): credentials, database, generated pages
+.env
+data/
+www/
+*.db
+*.db-wal
+*.db-shm
+tokens.enc
+.token_key
+*.log
+*.pid
+*heartbeat*
+NEEDS_REAUTH
+
+# OS
+.DS_Store

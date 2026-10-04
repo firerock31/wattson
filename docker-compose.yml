@@ -1,0 +1,31 @@
+# Wattson: open-source Rivian energy tracker.
+#
+# First run:
+#   1. cp .env.example .env   # fill in home coordinates + electricity rate
+#   2. docker compose run --rm tracker python auth.py   # link Rivian account
+#   3. docker compose up -d
+# Dashboard: http://localhost:8080  (first poll takes a few minutes)
+
+services:
+  tracker:
+    build: .
+    env_file: .env
+    environment:
+      RIVIAN_DB_PATH: /data/rivian.db
+      RIVIAN_TOKENS_PATH: /data/tokens.enc
+      RIVIAN_TOKEN_KEY_PATH: /data/.token_key
+      RIVIAN_REPORT_PATH: /app/www/rivian-dashboard.html
+    volumes:
+      - ./data:/data
+      - ./www:/app/www
+    restart: unless-stopped
+
+  web:
+    image: nginx:alpine
+    ports:
+      - "127.0.0.1:8080:80"
+    volumes:
+      - ./www:/usr/share/nginx/html:ro
+      - ./web/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - tracker
