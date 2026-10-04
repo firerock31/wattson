@@ -133,7 +133,7 @@ class Sim:
         return USABLE_KWH - self.day_index * 0.015
 
     def emit(self, gear, speed=None, charger_state=None, power_kw=None,
-             geo_label=None):
+             geo_label=None, cloud_online=1):
         self.snaps.append({
             "ts": int(self.ts),
             "soc": round(self.soc, 2),
@@ -149,7 +149,7 @@ class Sim:
             "speed": round(speed, 1) if speed is not None else None,
             "geo_label": geo_label,
             "odometer": round(self.odo_m, 1),
-            "cloud_online": 1,
+            "cloud_online": cloud_online,
             "cloud_sync_ts": int(self.ts),
         })
 
@@ -180,13 +180,15 @@ class Sim:
     def dwell(self, minutes, label):
         if minutes <= 0:
             return
-        # Mid-dwell heartbeat for long stops
+        # Mid-dwell heartbeats: car is asleep by now (arrival was awake).
         elapsed = 0
         while elapsed + 30 < minutes:
             self.ts += 30 * 60
             elapsed += 30
-            self.emit(gear="P", geo_label=label)
+            self.emit(gear="P", geo_label=label, cloud_online=0)
         self.ts += (minutes - elapsed) * 60
+        # Departure snapshot: trip bracket lands at drive start.
+        self.emit(gear="P", geo_label=label, cloud_online=1)
 
     def charge_home(self):
         need = CHARGE_TARGET - self.soc
@@ -236,10 +238,16 @@ class Sim:
         bed = dt.replace(hour=23, minute=0, second=0)
         if bed < dt:
             bed += timedelta(days=1)
-        # Parked snapshots until bedtime
+        # Parked snapshots until bedtime: first awake, then asleep.
+        # Slight drain splits the charge session from the parked tail.
+        first = True
         while self.ts < bed.timestamp():
             self.ts = min(self.ts + 1800, bed.timestamp())
-            self.emit(gear="P", geo_label="Home")
+            if not first:
+                self.soc -= 0.06
+            self.emit(gear="P", geo_label="Home",
+                      cloud_online=1 if first else 0)
+            first = False
         kwh = 0.0
         if charge:
             kwh = self.charge_home()
@@ -248,7 +256,7 @@ class Sim:
         while self.ts < wake:
             self.ts = min(self.ts + 3600, wake)
             self.soc -= 0.18
-            self.emit(gear="P", geo_label="Home")
+            self.emit(gear="P", geo_label="Home", cloud_online=0)
         return kwh
 
 
@@ -272,6 +280,7 @@ def build(out_dir: Path, days: int):
         morning = dt.replace(hour=start_h, minute=0, second=0)
         if morning.timestamp() > sim.ts:
             sim.ts = morning.timestamp()
+            sim.emit(gear="P", geo_label="Home", cloud_online=0)
         for key, dwell_min in day_plan:
             if key == "ran_oc":
                 # Special: DC fast charge stop
