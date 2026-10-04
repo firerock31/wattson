@@ -9,6 +9,7 @@ venv/
 data/
 www/
 demo-data/
+assets/*.webp
 *.db
 *.db-wal
 *.db-shm
