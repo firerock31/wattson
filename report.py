@@ -431,6 +431,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",Helvetica,Arial,
 .pill{background:var(--card2);border-radius:999px;padding:10px 18px;
   font-weight:700;font-size:15px}
 .updated{color:var(--faint);font-size:13px}
+.demobanner{background:#b45309;color:#fff8ed;text-align:center;font-weight:700;font-size:15px;padding:10px 12px;border-radius:12px;margin:8px 0 4px}
 .hero{padding:28px 4px 8px}
 .hero-top{display:flex;justify-content:space-between;gap:10px;align-items:center}
 .hero-num{min-width:0;flex:1 1 auto}
@@ -579,6 +580,7 @@ table.drain tr:last-child td{border-bottom:0}
 }
 </style></head>
 <body><div class="wrap">
+__DEMOBANNER__
 <div class="topbar">
   <div class="pill">__VEHICLE__</div>
   <div class="updated">Updated __UPDATED__</div>
@@ -1992,6 +1994,9 @@ def generate() -> None:
     else:
         charging_top, charging_bottom = "", charging_section
     repl = {
+        "__DEMOBANNER__": ('<div class="demobanner">Demo data: fictional '
+                           'vehicle, fictional drives</div>'
+                           if os.environ.get("WATTSON_DEMO") else ""),
         "__TITLE__": f"{_esc(vehicle_name)} - Energy Tracker",
         "__VEHICLE__": _esc(vehicle_name),
         "__UPDATED__": _fmt_ts(latest.get("ts", now)),

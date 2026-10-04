@@ -63,6 +63,22 @@ dashboard builds itself after that.
 Want it on your phone? Put [Tailscale](https://tailscale.com/) on the machine
 and your phone. Free, five minutes, no port forwarding.
 
+## Try the demo (no Rivian account needed)
+
+```bash
+python demo.py
+```
+
+This builds a 10-day fictional driving history for a Demo R2 in Los
+Angeles (Venice home base, Disneyland day trip, Newport Beach fast
+charge, the works), runs the real analysis pipeline on it, and writes
+a dashboard stamped with a demo banner. All data is synthetic; the
+places are real, the driver is not.
+
+Open `demo-data/www/rivian-dashboard.html` in a browser to click around.
+The whole `demo-data/www/` folder is a static site, so you can also
+upload it anywhere to share the demo.
+
 ## How it works
 
 A poller hits Rivian's API on an adaptive schedule, frequent while driving,
