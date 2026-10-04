@@ -2,10 +2,24 @@
 
 **Gary watches your Rivian. Wattson knows it.**
 
-Wattson is an open-source energy tracker for Rivian vehicles. Rivian doesn't
-keep drive history: every unrecorded drive is gone for good. Wattson records
-everything, per-trip efficiency, charging sessions and true costs, overnight
-drain, all of it, on a dashboard that's yours and yours alone.
+## Why this exists
+
+I drive a Rivian R2. Love the car. But Rivian doesn't keep drive history, so
+every unrecorded drive is just gone. I wanted to know my real efficiency per
+trip, what home charging actually costs me, and how much charge disappears
+overnight. The app shows none of that.
+
+So I built this. It was supposed to be a small weekend thing. It was not.
+
+Along the way I figured out how Rivian's unofficial API works, how to poll a
+car without keeping it awake, and how to handle credentials without being
+careless about it (only encrypted session tokens, never your password). There
+were bugs, rewrites, and one very confusing stretch where my overnight drain
+numbers made no sense at all.
+
+This is a personal side project. It works, I run it every day, and I'm
+sharing it in case it's useful or fun for you too. No roadmap, no SLA, no
+promises. Take it, run it, break it, make it yours.
 
 ## What it does
 
