@@ -1033,7 +1033,8 @@ def _day_map_html(day: str, dtrips: list[dict]) -> str:
     if parts is None:
         return ""
     jpeg_bytes, svg, cw, ch = parts
-    url = f"/maps/day-{day}.jpg"
+    _mp = "maps/" if os.environ.get("WATTSON_DEMO") else "/maps/"
+    url = f"{_mp}day-{day}.jpg"
     img = ""
     if jpeg_bytes is not None:
         maps_dir = REPORT_PATH.parent / "maps"
@@ -1443,8 +1444,9 @@ def _point_map_html(lat: float | None, lon: float | None,
         tmp = png_path.with_suffix(".tmp")
         tmp.write_bytes(jpeg_bytes)
         os.replace(tmp, png_path)
+    _mp = "maps/" if os.environ.get("WATTSON_DEMO") else "/maps/"
     return (
-        f'<div class="chargemap"><img src="/maps/{name}.jpg" '
+        f'<div class="chargemap"><img src="{_mp}{name}.jpg" '
         f'alt="Charging location: {_esc(label)}" loading="lazy" '
         f'width="512" height="256" '
         f'onload="this.classList.add(\'ld\')" '
