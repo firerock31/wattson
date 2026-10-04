@@ -1117,6 +1117,7 @@ def _activity_day_data(trips: list[dict], errands: list[dict],
         return []
 
     out = []
+    demo = bool(os.environ.get("WATTSON_DEMO"))
     for day in days:
         dtrips = sorted(by_day.get(day, []), key=lambda t: t["start_ts"])
         err = err_by_day.get(day)
@@ -1124,6 +1125,10 @@ def _activity_day_data(trips: list[dict], errands: list[dict],
         kwh = (sum(t["kwh_used"] for t in dtrips)
                + (err["kwh_used"] if err else 0))
         n = len(dtrips) + (err["drives"] if err else 0)
+        # Demo data ends yesterday; skip the empty "today" card so the
+        # demo doesn't open on a "No drives" blank.
+        if demo and day == today and n == 0:
+            continue
         d = datetime.strptime(day, "%Y-%m-%d").date()
         day_start = datetime.combine(d, datetime.min.time(),
                                      tzinfo=LOCAL_TZ).timestamp()
