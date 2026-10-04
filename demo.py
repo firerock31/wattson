@@ -244,7 +244,7 @@ class Sim:
         while self.ts < bed.timestamp():
             self.ts = min(self.ts + 600, bed.timestamp())
             if not first:
-                self.soc -= 0.02
+                self.soc -= 0.008
             self.emit(gear="P", geo_label="Home",
                       cloud_online=1 if first else 0)
             first = False
@@ -256,11 +256,11 @@ class Sim:
         kwh = 0.0
         if charge:
             kwh = self.charge_home()
-        # Sleep till 7am with vampire drain (~0.18%/hr)
+        # Sleep till 7am with vampire drain (~0.07%/hr, ~1.5mi/night)
         wake = (bed + timedelta(hours=8)).timestamp()
         while self.ts < wake:
             self.ts = min(self.ts + 600, wake)
-            self.soc -= 0.03
+            self.soc -= 0.012
             self.emit(gear="P", geo_label="Home", cloud_online=0)
         return kwh
 
