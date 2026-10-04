@@ -122,7 +122,7 @@ class Sim:
     def __init__(self, start_ts):
         self.ts = start_ts
         self.soc = 90.0
-        self.odo_m = 1314 * 1609.344
+        self.odo_m = 943 * 1609.344
         self.lat, self.lon = PLACES["home"][1], PLACES["home"][2]
         self.snaps = []
         self.rng = random.Random(42)
