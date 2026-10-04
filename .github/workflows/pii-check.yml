@@ -1,0 +1,37 @@
+name: PII Check
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  pii-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Scan for PII
+        run: |
+          echo "Scanning for personal information..."
+          FOUND=0
+          # Car name (case-insensitive)
+          if grep -ri "sonic" --include="*.py" --include="*.md" --include="*.html" --include="*.yml" --include="*.yaml" --include="*.example" . | grep -v ".git/"; then
+            echo "::error::Found 'Sonic' (car name)"
+            FOUND=1
+          fi
+          # Email addresses (excluding example placeholders)
+          if grep -rE "[a-zA-Z0-9._%+-]+@(?!example\.com|example\.org)[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}" --include="*.py" --include="*.md" --include="*.yml" --include="*.yaml" . | grep -v ".git/"; then
+            echo "::error::Found email address"
+            FOUND=1
+          fi
+          # High-precision LA-area coordinates (33-34N, 117-119W)
+          # Allows demo.py fictional locations; flags anything else
+          if grep -rE "3[34]\.[0-9]{4,}" --include="*.py" . | grep -v ".git/" | grep -v "demo.py"; then
+            echo "::error::Found high-precision coordinates outside demo.py"
+            FOUND=1
+          fi
+          if [ $FOUND -eq 1 ]; then
+            echo "PII detected. Please remove personal information."
+            exit 1
+          fi
+          echo "No PII found."
