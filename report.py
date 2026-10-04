@@ -1033,20 +1033,27 @@ def _day_map_html(day: str, dtrips: list[dict]) -> str:
     if parts is None:
         return ""
     jpeg_bytes, svg, cw, ch = parts
-    _mp = "maps/" if os.environ.get("WATTSON_DEMO") else "/maps/"
-    url = f"{_mp}day-{day}.jpg"
+    demo = bool(os.environ.get("WATTSON_DEMO"))
     img = ""
     if jpeg_bytes is not None:
-        maps_dir = REPORT_PATH.parent / "maps"
-        maps_dir.mkdir(parents=True, exist_ok=True)
-        png_path = maps_dir / f"day-{day}.jpg"
-        today = _day(int(time.time()))
-        if day == today or not png_path.exists():
-            tmp = png_path.with_suffix(".tmp")
-            tmp.write_bytes(jpeg_bytes)
-            os.replace(tmp, png_path)
-        if day == today:
-            url += f"?v={int(time.time())}"
+        if demo:
+            # Single-file demo: embed the raster map, no sidecar files.
+            import base64 as _b64
+            url = ("data:image/jpeg;base64,"
+                   + _b64.b64encode(jpeg_bytes).decode())
+        else:
+            _mp = "maps/" if demo else "/maps/"
+            url = f"{_mp}day-{day}.jpg"
+            maps_dir = REPORT_PATH.parent / "maps"
+            maps_dir.mkdir(parents=True, exist_ok=True)
+            png_path = maps_dir / f"day-{day}.jpg"
+            today = _day(int(time.time()))
+            if day == today or not png_path.exists():
+                tmp = png_path.with_suffix(".tmp")
+                tmp.write_bytes(jpeg_bytes)
+                os.replace(tmp, png_path)
+            if day == today:
+                url += f"?v={int(time.time())}"
         img = (f'<img src="{url}" alt="Trip map" loading="lazy" '
                f'width="{cw}" height="{ch}" '
                f'style="width:100%;height:auto;display:block;{_TILE_FILTER}" '
@@ -1434,19 +1441,28 @@ def _point_map_html(lat: float | None, lon: float | None,
     maps_dir = REPORT_PATH.parent / "maps"
     maps_dir.mkdir(parents=True, exist_ok=True)
     png_path = maps_dir / f"{name}.jpg"
-    if not png_path.exists():
+    demo = bool(os.environ.get("WATTSON_DEMO"))
+    jpeg_bytes = None
+    if png_path.exists():
+        jpeg_bytes = png_path.read_bytes()
+    else:
         try:
             jpeg_bytes = _render_point_map(lat, lon)
         except Exception:
             jpeg_bytes = None
         if jpeg_bytes is None:
             return ""
-        tmp = png_path.with_suffix(".tmp")
-        tmp.write_bytes(jpeg_bytes)
-        os.replace(tmp, png_path)
-    _mp = "maps/" if os.environ.get("WATTSON_DEMO") else "/maps/"
+        if not demo:
+            tmp = png_path.with_suffix(".tmp")
+            tmp.write_bytes(jpeg_bytes)
+            os.replace(tmp, png_path)
+    if demo:
+        import base64 as _b64
+        src = "data:image/jpeg;base64," + _b64.b64encode(jpeg_bytes).decode()
+    else:
+        src = f"/maps/{name}.jpg"
     return (
-        f'<div class="chargemap"><img src="{_mp}{name}.jpg" '
+        f'<div class="chargemap"><img src="{src}" '
         f'alt="Charging location: {_esc(label)}" loading="lazy" '
         f'width="512" height="256" '
         f'onload="this.classList.add(\'ld\')" '
