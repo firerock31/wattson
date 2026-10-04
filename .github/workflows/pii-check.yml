@@ -19,6 +19,16 @@ jobs:
             echo "::error::Found 'Sonic' (car name)"
             FOUND=1
           fi
+          # Full name
+          if grep -ri "andy cheng" --include="*.py" --include="*.md" --include="*.html" . | grep -v ".git/" | grep -v "pii-check.yml" | grep -v "LICENSE"; then
+            echo "::error::Found 'Andy Cheng' (name)"
+            FOUND=1
+          fi
+          # Home city
+          if grep -ri "culver city" --include="*.py" --include="*.md" --include="*.html" . | grep -v ".git/" | grep -v "pii-check.yml"; then
+            echo "::error::Found 'Culver City' (location)"
+            FOUND=1
+          fi
           # Email addresses (excluding example placeholders)
           if grep -rE "[a-zA-Z0-9._%+-]+@(?!example\.com|example\.org)[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}" --include="*.py" --include="*.md" --include="*.yml" --include="*.yaml" . | grep -v ".git/"; then
             echo "::error::Found email address"
