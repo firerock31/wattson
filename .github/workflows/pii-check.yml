@@ -15,7 +15,7 @@ jobs:
           echo "Scanning for personal information..."
           FOUND=0
           # Car name (case-insensitive)
-          if grep -ri "sonic" --include="*.py" --include="*.md" --include="*.html" --include="*.yml" --include="*.yaml" --include="*.example" . | grep -v ".git/"; then
+          if grep -ri "sonic" --include="*.py" --include="*.md" --include="*.html" --include="*.yml" --include="*.yaml" --include="*.example" . | grep -v ".git/" | grep -v "pii-check.yml"; then
             echo "::error::Found 'Sonic' (car name)"
             FOUND=1
           fi
