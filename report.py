@@ -28,6 +28,7 @@ from analyze import activity_segments
 from config import (HOME_LAT, HOME_LON,
                     ODOMETER_METERS_PER_UNIT,
                     USABLE_KWH, HOME_KWH_RATE, VEHICLE_NAME,
+                    VEHICLE_MODEL,
                     REPORT_PATH, TOKENS_PATH, LOCAL_TZ)
 from crypto import unseal
 from db import connect
@@ -425,12 +426,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",Helvetica,Arial,
   sans-serif;margin:0;padding:0 16px 48px;background:var(--bg);color:var(--text);
   -webkit-font-smoothing:antialiased}
 .wrap{max-width:720px;margin:0 auto}
-.topbar{display:flex;justify-content:space-between;align-items:center;
+.sitenav{position:sticky;top:0;z-index:50;background:rgba(11,13,16,.88);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-bottom:1px solid #232326}.nav-inner{max-width:1100px;margin:0 auto;padding:0 16px;height:56px;display:flex;align-items:center;justify-content:space-between;gap:16px}.nav-brand{font-weight:700;font-size:17px;letter-spacing:.06em;color:var(--text);text-decoration:none;white-space:nowrap}.nav-links{display:flex;gap:22px}.nav-links a{color:var(--dim);text-decoration:none;font-size:14px;font-weight:500;white-space:nowrap}.nav-links a:hover{color:var(--text)}.nav-updated{font-size:12px;color:var(--faint);white-space:nowrap;display:flex;align-items:center;gap:8px}.demo-pill{font-size:11px;font-weight:600;color:#b45309;background:rgba(180,83,9,.15);border:1px solid rgba(180,83,9,.4);padding:2px 8px;border-radius:20px;white-space:nowrap}@media(max-width:640px){.nav-links{display:none}}.topbar{display:flex;justify-content:space-between;align-items:center;
   padding:20px 4px 8px}
 .pill{background:var(--card2);border-radius:999px;padding:10px 18px;
   font-weight:700;font-size:15px}
 .updated{color:var(--faint);font-size:13px}
-.demobanner{background:rgba(255,255,255,.82);color:#111;text-align:center;font-weight:600;font-size:13px;padding:7px 12px;letter-spacing:.02em}
+
 .hero{padding:28px 4px 8px}
 .hero-top{display:flex;justify-content:space-between;gap:10px;align-items:center}
 .hero-num{min-width:0;flex:1 1 auto}
@@ -579,13 +580,18 @@ table.drain tr:last-child td{border-bottom:0}
 }
 </style></head>
 <body>
-__DEMOBANNER__<div class="wrap">
-<div class="topbar">
-  <div class="pill">__VEHICLE__</div>
-  <div class="updated">Updated __UPDATED__</div>
-</div>
+<nav class="sitenav"><div class="nav-inner">
+  <a class="nav-brand" href="#top">__BRAND__</a>
+  <div class="nav-links">
+    <a href="#daily">Daily</a>
+    <a href="#battery">Battery</a>
+    <a href="#charging">Charging</a>
+  </div>
+  <div class="nav-updated">__DEMOPILL__Updated __UPDATED__</div>
+</div></nav>
+<div class="wrap">
 
-<div class="hero">
+<div class="hero" id="top">
   <div class="hero-top">
     <div class="hero-num">
       <p class="hero-range">__RANGE__</p>
@@ -607,11 +613,11 @@ __DEMOBANNER__<div class="wrap">
 </div>
 
 __CHARGING_TOP__
-<div class="sec-row"><h2 class="sec">Daily activity</h2>__TRIPMONTH__</div>
+<div class="sec-row" id="daily"><h2 class="sec">Daily activity</h2>__TRIPMONTH__</div>
 <div class="alegend"><span><i class="st-moving"></i>driving</span><span><i class="st-charging"></i>charging</span><span><i class="st-parked"></i>awake</span><span><i class="st-sleep"></i>deep sleep</span><span><i class="st-unknown"></i>no data</span></div>
 __TRIPS__
 
-<h2 class="sec">Battery</h2>
+<h2 class="sec" id="battery">Battery</h2>
 <div class="card">
   <h3>End of day</h3>
   <div class="sub">Remaining battery at 11:55 PM &middot; __BATTERYNOTE__</div>
@@ -1693,6 +1699,10 @@ def generate() -> None:
                         or "My Rivian")
     except Exception:
         vehicle_name = VEHICLE_NAME or "My Rivian"
+    brand = f"{vehicle_name} - {VEHICLE_MODEL}" if VEHICLE_MODEL else vehicle_name
+    _is_demo = bool(os.environ.get("WATTSON_DEMO"))
+    demopill = ('<span class="demo-pill">Demo data</span>'
+                if _is_demo else "")
 
     now = int(time.time())
 
@@ -2009,7 +2019,7 @@ def generate() -> None:
     live_is_home = bool(live) and _is_home(
         loc, latest.get("lat"), latest.get("lon"))
     charging_section = (
-        '<h2 class="sec">Charging</h2>'
+        '<h2 class="sec" id="charging">Charging</h2>'
         + _charges_html(charges, live, live_is_home))
     if live:
         charging_top, charging_bottom = charging_section, ""
@@ -2027,6 +2037,8 @@ def generate() -> None:
                            if os.environ.get("WATTSON_DEMO") else ""),
         "__TITLE__": f"{_esc(vehicle_name)} - Energy Tracker",
         "__VEHICLE__": _esc(vehicle_name),
+        "__BRAND__": _esc(brand),
+        "__DEMOPILL__": demopill,
         "__UPDATED__": _fmt_ts(latest.get("ts", now)),
         "__RANGE__": f"{rng:.0f} mi" if rng else "-",
         "__CARTAG__": car_tag,

@@ -33,6 +33,7 @@ HOME_KWH_RATE = float(os.environ.get("RIVIAN_HOME_KWH_RATE", "0.30"))
 # Display name for the dashboard hero. Falls back to the vehicle name on
 # your Rivian account, then to a generic label.
 VEHICLE_NAME = os.environ.get("RIVIAN_VEHICLE_NAME", "")
+VEHICLE_MODEL = os.environ.get("RIVIAN_VEHICLE_MODEL", "")
 # Local timezone for dashboard dates/times (IANA name).
 LOCAL_TZ = ZoneInfo(os.environ.get("WATTSON_TIMEZONE",
                                   "America/Los_Angeles"))
