@@ -161,6 +161,9 @@ marks a free session.
 
 Hobby project, no SLA. Issues and pull requests welcome.
 
+Built something cool with Wattson? I'd love to hear about it. And pay
+it forward: keep it open, keep it fun.
+
 ## License
 
 MIT. See [LICENSE](LICENSE).
