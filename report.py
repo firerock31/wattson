@@ -481,7 +481,7 @@ h2.sec{font-size:32px;font-weight:750;letter-spacing:-0.8px;margin:38px 0 14px}
   .chlive{flex-direction:column;align-items:stretch}
   .chlive-side{flex:1 1 auto;display:grid;grid-template-columns:1fr 1fr;gap:14px}
 }
-.stat{background:var(--card);border-radius:var(--radius);padding:20px}
+.stat{background:var(--card);border-radius:var(--radius);padding:20px}a.stat{color:inherit;text-decoration:none;transition:background .2s,transform .2s;cursor:pointer}a.stat:hover{background:rgba(255,255,255,.07);transform:translateY(-1px)}
 .stat .k{font-size:13px;color:var(--dim);margin-bottom:8px}
 .stat .v{font-size:38px;font-weight:700;letter-spacing:-1px;line-height:1.05}
 .stat .v small{font-size:18px;font-weight:600;color:var(--dim)}
@@ -616,13 +616,13 @@ table.drain tr:last-child td,table.ctab tr:last-child td{border-bottom:0}
   <div class="battbar__BATTCHG__"><div style="width:__SOCPCT__%">__BOLT__</div></div>
   <div class="heroloc">__LOCATION__</div>
   <div class="grid3">
-    __IDLESTAT__
-    <div class="stat"><div class="k">Lifetime efficiency</div>
-      <div class="v green">__LIFEMI__<small> mi/kWh</small></div>
-      <div class="s">__LIFESUB__</div></div>
-    <div class="stat"><div class="k">Lifetime savings vs gas</div>
+    <a class="stat" href="#savings"><div class="k">Lifetime savings vs gas</div>
       <div class="v green">__GASSAVE__</div>
-      <div class="s">__GASSAVESUB__</div></div>
+      <div class="s">__GASSAVESUB__</div></a>
+    __IDLESTAT__
+    <a class="stat" href="#daily"><div class="k">Lifetime efficiency</div>
+      <div class="v green">__LIFEMI__<small> mi/kWh</small></div>
+      <div class="s">__LIFESUB__</div></a>
   </div>
 </div>
 
@@ -1881,10 +1881,10 @@ def generate() -> None:
         })
     if _savings_rows:
         _srows = "".join(
-            "<tr><td>%s</td><td>%.1f</td><td>$%.2f</td>"
+            "<tr><td>%s</td><td>%s</td><td>%.1f</td><td>$%.2f</td>"
             "<td>$%.2f</td><td>$%.2f</td>"
             '<td class="%s">%s</td></tr>' % (
-                r["date"], r["kwh"], r["ev_cost"],
+                r["date"], "DC" if r["is_dc"] else "AC", r["kwh"], r["ev_cost"],
                 r["gas_price"], r["gas_cost"],
                 "green" if r["save"] >= 0 else "amber",
                 _fmt_money(r["save"], 2))
@@ -1896,7 +1896,7 @@ def generate() -> None:
             '<div class="sub">Per charging session, priced at each '
             'day&apos;s gas price</div>'
             '<div style="overflow-x:auto"><table class="ctab"><thead><tr>'
-            "<th>Date</th><th>kWh</th><th>EV cost</th>"
+            "<th>Date</th><th>Type</th><th>kWh</th><th>EV cost</th>"
             "<th>Gas $/gal</th><th>Gas cost</th><th>Saved</th>"
             "</tr></thead><tbody>" + _srows + "</tbody></table></div></div>"
         )
@@ -2053,22 +2053,22 @@ def generate() -> None:
             verdict = f"About {ov['watts']:.0f} W on average over {hrs_bit}"
         if ov["mi"] is not None:
             idle_stat = (
-                '<div class="stat"><div class="k">Overnight drain</div>'
+                '<a class="stat" href="#battery"><div class="k">Overnight drain</div>'
                 f'<div class="v amber">{kwh_big}<small> kWh</small> '
                 f'<span class="dim">&bull;</span> {mi_big}<small> mi</small></div>'
                 f'<div class="s">{window_bit}</div>'
-                f'<div class="s">{_esc(verdict)}</div></div>')
+                f'<div class="s">{_esc(verdict)}</div></a>')
         else:
             idle_stat = (
-                '<div class="stat"><div class="k">Overnight drain</div>'
+                '<a class="stat" href="#battery"><div class="k">Overnight drain</div>'
                 f'<div class="v amber">{kwh_big}<small> kWh</small></div>'
                 f'<div class="s">{window_bit}</div>'
-                f'<div class="s">{_esc(verdict)}</div></div>')
+                f'<div class="s">{_esc(verdict)}</div></a>')
     else:
         idle_stat = (
-            '<div class="stat"><div class="k">Overnight drain</div>'
+            '<a class="stat" href="#battery"><div class="k">Overnight drain</div>'
             '<div class="v amber">-<small> kWh</small></div>'
-            '<div class="s">no data yet</div></div>')
+            '<div class="s">no data yet</div></a>')
     # Overnight trend: night-by-night bars on the same clean window as the
     # hero, so "typical" has a visual anchor. A night over 1.6x the median
     # (needs 3+ nights) flags red. Gets the same 1M / 6M / 1Y / All range
