@@ -2054,8 +2054,7 @@ def generate() -> None:
         if ov["mi"] is not None:
             idle_stat = (
                 '<a class="stat" href="#battery"><div class="k">Overnight drain</div>'
-                f'<div class="v amber">{kwh_big}<small> kWh</small> '
-                f'<span class="dim">&bull;</span> {mi_big}<small> mi</small></div>'
+                f'<div class="v amber">{kwh_big}<small> kWh</small></div>'
                 f'<div class="s">{window_bit}</div>'
                 f'<div class="s">{_esc(verdict)}</div></a>')
         else:
