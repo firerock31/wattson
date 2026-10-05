@@ -27,6 +27,8 @@ promises. Take it, run it, break it, make it yours.
 - **Charging log**, sessions with kWh added, your real home electricity cost,
   and charge curves
 - **Overnight drain tracking**, multi-night vampire-drain trends
+- **Fuel savings vs gas**, per-session and lifetime savings against a gas
+  SUV, priced at each charge day's AAA gas price
 - **Drive history**, the record Rivian never kept
 
 ## Quick start
@@ -99,6 +101,10 @@ locally: your data never leaves your machine.
 | `RIVIAN_HOME_KWH_RATE` | No | Your all-in $/kWh home rate, for charging cost (default `0.30`) |
 | `WATTSON_TIMEZONE` | No | IANA timezone for dashboard dates/times (default `America/Los_Angeles`) |
 | `RIVIAN_VEHICLE_NAME` | No | Dashboard display name (defaults to your Rivian account name) |
+| `WATTSON_GAS_COMPARISON_MPG` | No | MPG of the gas SUV you compare against (default `25`) |
+| `WATTSON_GAS_PRICE` | No | Pin a $/gal gas price (skips the AAA scrape; demo sets this) |
+| `WATTSON_GAS_PRICE_URL` | No | AAA gas-price page (default `https://gasprices.aaa.com?state=CA`) |
+| `WATTSON_GAS_PRICE_METRO` | No | Metro label on the AAA page (default `Los Angeles-Long Beach`) |
 
 Drop a `hero.webp` image of your car in `assets/` to customize the dashboard
 hero. (Optional; the layout holds without it.)
@@ -110,6 +116,23 @@ hero. (Optional; the layout holds without it.)
 - `report.py`, dashboard HTML generation
 - `auth.py`, one-time Rivian account linking
 - `geocode.py`, `weather.py`, location names and ambient temperatures
+- `gasprice.py`, AAA gas-price scraping with daily caching
+- `api.py`, records what you paid per kWh at DC fast chargers
+
+## Fuel savings vs gas
+
+The hero card shows lifetime savings against driving a gas SUV
+(`WATTSON_GAS_COMPARISON_MPG`, default 25 MPG). Each charging session is
+priced individually: EV cost is kWh times your home rate (or the DC price
+you entered), gas cost is the session's miles divided by the comparison MPG
+times that day's AAA gas price. Home sessions count automatically; DC fast
+charges are excluded until you record what you paid.
+
+To record a DC price, click **? add cost** on the charging-log row. A small
+form posts to the bundled API service (`api.py`, proxied at `/api/` by
+nginx), which saves the $/kWh rate and regenerates the dashboard. Editing a
+priced session reopens the form with the current value. Entering `$0.00`
+marks a free session.
 
 ## Contributing
 

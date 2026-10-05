@@ -76,7 +76,8 @@ CREATE TABLE IF NOT EXISTS charges(
     charge_type TEXT,
     lat REAL,
     lon REAL,
-    label TEXT
+    label TEXT,
+    user_cost_per_kwh REAL
 );
 
 CREATE TABLE IF NOT EXISTS drains(
@@ -159,6 +160,10 @@ def init():
             name = col.split()[0]
             if name not in trip_cols:
                 con.execute(f"ALTER TABLE trips ADD COLUMN {col}")
+        charge_cols = {r["name"] for r in
+                       con.execute("PRAGMA table_info(charges)").fetchall()}
+        if "user_cost_per_kwh" not in charge_cols:
+            con.execute("ALTER TABLE charges ADD COLUMN user_cost_per_kwh REAL")
 
 
 def last_odometer():
@@ -229,6 +234,14 @@ def rebuild_derived(trips: list[dict], drains: list[dict],
                     errands: list[dict] | None = None) -> None:
     init()  # ensure schema + migrations before wiping derived tables
     with connect() as con:
+        # Preserve user-entered DC fast-charge costs across the re-derive:
+        # charges are deleted and re-inserted below, keyed by start_ts.
+        try:
+            _costs = {r[0]: r[1] for r in con.execute(
+                "SELECT start_ts, user_cost_per_kwh FROM charges "
+                "WHERE user_cost_per_kwh IS NOT NULL").fetchall()}
+        except Exception:
+            _costs = {}
         con.execute("DELETE FROM trips")
         con.execute("DELETE FROM drains")
         con.execute("DELETE FROM charges")
@@ -270,6 +283,11 @@ def rebuild_derived(trips: list[dict], drains: list[dict],
               c.get("charge_type"), c.get("lat"), c.get("lon"),
               c.get("label")) for c in (charges or [])],
         )
+        # Restore preserved user costs onto the re-derived charges.
+        if _costs:
+            con.executemany(
+                "UPDATE charges SET user_cost_per_kwh = ? WHERE start_ts = ?",
+                [(v, k) for k, v in _costs.items()])
         con.executemany(
             "INSERT INTO errands (day, drives, miles, kwh_used)"
             " VALUES (?,?,?,?)",

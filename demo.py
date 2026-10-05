@@ -327,6 +327,8 @@ def main():
     os.environ["WATTSON_TIMEZONE"] = "America/Los_Angeles"
     os.environ["WATTSON_DEMO"] = "1"
     os.environ["WATTSON_DEMO_LIFETIME_MI"] = "1035"
+    # Pinned demo gas price: no network scraping during demo generation.
+    os.environ["WATTSON_GAS_PRICE"] = "4.89"
     os.environ["RIVIAN_REPORT_PATH"] = str(out / "www" / "rivian-dashboard.html")
 
     # Fresh DB
@@ -354,6 +356,13 @@ def main():
     trips, drains, charges, errands = derive()
     print(f"derived: {len(trips)} trips, {len(drains)} drains, "
           f"{len(charges)} charges, {len(errands)} errand days")
+
+    # Demo DC fast-charge cost, so the fuel-savings card shows a priced
+    # DC session alongside the home sessions.
+    with connect() as con:
+        con.execute(
+            "UPDATE charges SET user_cost_per_kwh = 0.48 "
+            "WHERE charge_type = 'DC fast'")
 
     from report import generate
     generate()

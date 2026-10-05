@@ -40,6 +40,13 @@ RED = "#ff5a52"
 CHARGE_TARGET_PCT = 90.0  # daily charge limit (100 for trips)
 # HOME_KWH_RATE lives in config.py (set RIVIAN_HOME_KWH_RATE in .env).
 HOME_RADIUS_M = 250.0
+# Fuel-savings comparison: equivalent gas SUV mpg, and gas-price
+GAS_COMPARISON_MPG = float(os.environ.get(
+    'WATTSON_GAS_COMPARISON_MPG',
+    os.environ.get('RIVIAN_GAS_MPG', '25')))
+GAS_PRICE_FALLBACK = float(os.environ.get(
+    'WATTSON_GAS_PRICE',
+    os.environ.get('RIVIAN_GAS_PRICE', '4.50')))
 
 def _ldt(ts: int) -> datetime:
     return datetime.fromtimestamp(ts, tz=LOCAL_TZ)
@@ -464,6 +471,8 @@ h2.sec{font-size:32px;font-weight:750;letter-spacing:-0.8px;margin:38px 0 14px}
   gap:10px}
 .card .sub{color:var(--dim);font-size:14px;margin-bottom:14px}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:18px}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-top:18px}
+@media(max-width:560px){.grid3{grid-template-columns:1fr}}
 .chlive{display:flex;gap:18px;align-items:center;margin-top:6px}
 .chlive-main{flex:1 1 0;min-width:0}
 .chlive-side{flex:0 0 172px;display:flex;flex-direction:column;gap:12px}
@@ -604,11 +613,14 @@ table.drain tr:last-child td{border-bottom:0}
   </div>
   <div class="battbar__BATTCHG__"><div style="width:__SOCPCT__%">__BOLT__</div></div>
   <div class="heroloc">__LOCATION__</div>
-  <div class="grid2">
+  <div class="grid3">
     __IDLESTAT__
     <div class="stat"><div class="k">Lifetime efficiency</div>
       <div class="v green">__LIFEMI__<small> mi/kWh</small></div>
       <div class="s">__LIFESUB__</div></div>
+    <div class="stat"><div class="k">Lifetime savings vs gas</div>
+      <div class="v green">__GASSAVE__</div>
+      <div class="s">__GASSAVESUB__</div></div>
   </div>
 </div>
 
@@ -651,7 +663,7 @@ bracket, between polls.</p>
 <button id="toTop" aria-label="Back to top"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5m-7 7 7-7 7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
 <script>
 __SCRIPT__
-</script><script>(function(){var ease=function(t){return t<.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2};document.querySelectorAll('a[href^="#"]').forEach(function(a){a.addEventListener('click',function(e){var el=document.querySelector(a.getAttribute('href'));if(!el)return;e.preventDefault();var y=el.getBoundingClientRect().top+window.scrollY-92;var s=window.scrollY,d=y-s,dur=900,t0=performance.now();(function step(t){var p=Math.min((t-t0)/dur,1);window.scrollTo(0,s+d*ease(p));if(p<1)requestAnimationFrame(step);})(t0);});});})();</script></body></html>"""
+</script><script>(function(){var ease=function(t){return t<.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2};document.querySelectorAll('a[href^="#"]').forEach(function(a){a.addEventListener('click',function(e){var el=document.querySelector(a.getAttribute('href'));if(!el)return;e.preventDefault();var y=el.getBoundingClientRect().top+window.scrollY-92;var s=window.scrollY,d=y-s,dur=900,t0=performance.now();(function step(t){var p=Math.min((t-t0)/dur,1);window.scrollTo(0,s+d*ease(p));if(p<1)requestAnimationFrame(step);})(t0);});});})();</script><form id="costform" method="POST" action="/api/charge-cost-form" style="position:absolute;left:-9999px;top:-9999px;width:1px;height:1px;opacity:0"><input type="hidden" name="charge_id" id="form_charge_id"><input type="hidden" name="cost_per_kwh" id="form_cost_per_kwh"></form><div id="costmodal" style="display:none;position:fixed;inset:0;z-index:100;background:rgba(0,0,0,.7);align-items:center;justify-content:center"><div style="background:#1a1d21;border:1px solid #333;border-radius:16px;padding:24px;max-width:320px;width:90%"><h3 style="margin:0 0 12px">DC charging cost</h3><p class="sub" style="margin:0 0 12px">Enter what you paid per kWh:</p><form onsubmit="saveCost();return false;" style="margin:0"><input id="costinput" type="number" step="0.01" min="0" placeholder="0.48" style="width:100%;padding:10px;font-size:16px;border-radius:8px;border:1px solid #444;background:#0b0d10;color:#fff;box-sizing:border-box"><div style="display:flex;gap:10px;margin-top:16px"><button type="submit" style="flex:1;padding:10px;border-radius:8px;border:none;background:#7ed321;color:#000;font-weight:600;cursor:pointer">Save</button><button type="button" onclick="closeCostModal()" style="flex:1;padding:10px;border-radius:8px;border:1px solid #444;background:transparent;color:#fff;cursor:pointer">Cancel</button></div></form></div></div><script>var _costChargeId=null;function openCostModal(chargeId,currentVal){_costChargeId=chargeId;document.getElementById('costinput').value=(currentVal||'');document.getElementById('costmodal').style.display='flex';document.getElementById('costinput').focus();}function closeCostModal(){document.getElementById('costmodal').style.display='none';_costChargeId=null;}function saveCost(){var v=parseFloat(document.getElementById('costinput').value);if(v===null||v===undefined||isNaN(v)||v<0){alert('Enter a valid price');return;}document.getElementById('form_charge_id').value=_costChargeId;document.getElementById('form_cost_per_kwh').value=v;document.getElementById('costform').submit();}document.getElementById('costmodal').addEventListener('click',function(e){if(e.target===this)closeCostModal();});document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=document.getElementById('costmodal');if(m&&m.style.display!=='none')closeCostModal();}});</script></body></html>"""
 
 _BOLT_SVG = ('<svg class="bolt" viewBox="0 0 24 24" aria-hidden="true">'
             '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>'
@@ -1478,7 +1490,16 @@ def _point_map_html(lat: float | None, lon: float | None,
         f'onload="this.classList.add(\'ld\')" '
         f'onerror="this.closest(\'.chargemap\').style.display=\'none\'">'
         f'</div>')
-def _charge_row_html(c: dict, scale: float, open_: bool) -> str:
+def _session_miles(c: dict, eff: float) -> float:
+    """Miles for the gas comparison: prefer BMS miles_added, else kwh*eff."""
+    m = c.get("miles_added") or 0
+    if m > 0:
+        return float(m)
+    return float(c.get("kwh_added") or 0) * eff
+
+
+def _charge_row_html(c: dict, scale: float, open_: bool,
+                     eff: float = 3.0) -> str:
     """One expandable charging-log row: summary plus detail."""
     ma = (f"{c['miles_added']:.0f} mi"
           if c.get("miles_added") is not None else "-")
@@ -1490,7 +1511,48 @@ def _charge_row_html(c: dict, scale: float, open_: bool) -> str:
     if _is_home(c.get("label"), c.get("lat"), c.get("lon")):
         cost = _home_cost(c.get("kwh_added"))
         if cost is not None:
-            cost_bit = f'<span><b>${cost:.2f}</b> cost</span>' 
+            cost_bit = f'<span><b>${cost:.2f}</b> cost</span>'
+    savings_bit = ""
+    _ctype = (c.get("charge_type") or "").lower()
+    try:
+        import gasprice as _gp2
+        _gp_val = _gp2.get_gas_price(_day(c["start_ts"]))
+    except Exception:
+        _gp_val = GAS_PRICE_FALLBACK
+    if _is_home(c.get("label"), c.get("lat"), c.get("lon")):
+        _kwh2 = c.get("kwh_added") or 0
+        _miles2 = _session_miles(c, eff)
+        if _kwh2 > 0 and _miles2 > 0:
+            _ev_c = _kwh2 * HOME_KWH_RATE
+            _gas_c = _miles2 / GAS_COMPARISON_MPG * _gp_val
+            _save = _gas_c - _ev_c
+            _cls = "green" if _save >= 0 else "amber"
+            _verb = "saved" if _save >= 0 else "lost"
+            savings_bit = ('<span><b class="%s">$%.2f</b> %s '
+                           '<span class="dim">($%.2f/gal)</span></span>'
+                           % (_cls, abs(_save), _verb, _gp_val))
+    elif "dc" in _ctype:
+        _dc_rate = c.get("user_cost_per_kwh")
+        _kwh3 = c.get("kwh_added") or 0
+        _miles3 = _session_miles(c, eff)
+        if _dc_rate is not None and _kwh3 > 0 and _miles3 > 0:
+            _ev_c3 = _kwh3 * _dc_rate
+            _gas_c3 = _miles3 / GAS_COMPARISON_MPG * _gp_val
+            _save3 = _gas_c3 - _ev_c3
+            _cls3 = "green" if _save3 >= 0 else "amber"
+            _verb3 = "saved" if _save3 >= 0 else "lost"
+            savings_bit = ('<span><b class="%s">$%.2f</b> %s '
+                           '<span class="dim">($%.2f/gal, $%.2f/kWh)</span> '
+                           '<a href="#" onclick="event.stopPropagation();'
+                           'openCostModal(%d, %.2f);return false;" '
+                           'style="color:#7ed321;font-size:12px">edit</a></span>'
+                           % (_cls3, abs(_save3), _verb3, _gp_val, _dc_rate,
+                              c["id"], _dc_rate))
+        else:
+            savings_bit = ('<span><a href="#" onclick="event.stopPropagation();'
+                           'openCostModal(%d, 0);return false;" '
+                           'style="color:#7ed321">? add cost</a></span>'
+                           % c["id"])
     cap = (f'{c["soc_start"]:.0f}% &rarr; {c["soc_end"]:.0f}% &middot; '
            f'{c["avg_kw"] or "-"} kW avg')
     mmap = _point_map_html(c.get("lat"), c.get("lon"), c.get("label") or "", f"charge-{c['start_ts']}")
@@ -1503,6 +1565,7 @@ def _charge_row_html(c: dict, scale: float, open_: bool) -> str:
         f'<div class="trip-stats">'
         f'<span><b>{c["kwh_added"]:.1f}</b> kWh</span>'
         f'{cost_bit}'
+        f'{savings_bit}'
         f'<span><b>{ma}</b> gained</span>'
         f'<span><b>{c["avg_kw"] or "-"}</b> kW avg</span>'
         f'<span><b>{c["soc_start"]:.0f}%</b> &rarr; '
@@ -1517,7 +1580,7 @@ def _charge_row_html(c: dict, scale: float, open_: bool) -> str:
 
 
 def _charges_html(charges: list[dict], live: dict | None = None,
-                  live_is_home: bool = False) -> str:
+                  live_is_home: bool = False, eff: float = 3.0) -> str:
     # The in-progress session is shown in the live card; keep it out of
     # the history list so it is not shown twice.
     hist = [ch for ch in charges
@@ -1530,16 +1593,16 @@ def _charges_html(charges: list[dict], live: dict | None = None,
         parts.append(_live_charge_html(live, live_is_home))
     if hist:
         scale = max(ch["kwh_added"] for ch in hist) * 1.15 or 1.0
-        rows = "".join(_charge_row_html(c, scale, open_=(i == 0))
+        rows = "".join(_charge_row_html(c, scale, open_=(i == 0), eff=eff)
                        for i, c in enumerate(hist))
         parts.append(
             f'<div class="card"><h3>Charging log</h3>'
             f'{_charge_month_summary(hist)}'
             f'{rows}</div>')
-    footnote = ('<p class="note">Home charging costed at $0.30/kWh, the '
-                'off-peak all-in rate from your SCE bill (TOU-D-PRIME, '
-                '9pm-4pm). Away sessions show no cost; public rates '
-                'vary.</p>')
+    footnote = ('<p class="note">Home charging costed at $%.2f/kWh '
+                '(set RIVIAN_HOME_KWH_RATE in .env). Away sessions show no '
+                'cost; public rates vary. Tap "? add cost" on a DC fast '
+                'charge to record what you paid.</p>' % HOME_KWH_RATE)
     return "".join(parts) + footnote
 
 
@@ -1692,6 +1755,18 @@ def _sleep_share(snapshots, t1: int, t2: int, hrs: float) -> dict:
             "unknown_h": round(hrs * nu / len(win), 1)}
 
 
+def _gas_subtitle(rows: list[dict]) -> str:
+    """Two-line hero subtitle: N home sessions / N DC sessions."""
+    n_home = sum(1 for r in rows if not r.get("is_dc"))
+    n_dc = sum(1 for r in rows if r.get("is_dc"))
+    parts = []
+    if n_home:
+        parts.append("%d home session%s" % (n_home, "" if n_home == 1 else "s"))
+    if n_dc:
+        parts.append("%d DC session%s" % (n_dc, "" if n_dc == 1 else "s"))
+    return "<br>".join(parts)
+
+
 def generate() -> None:
     try:
         tokens = unseal(TOKENS_PATH.read_bytes())
@@ -1728,6 +1803,9 @@ def generate() -> None:
             "SELECT * FROM errands ORDER BY day DESC LIMIT 30")]
         charges = [dict(r) for r in con.execute(
             "SELECT * FROM charges ORDER BY start_ts DESC LIMIT 20")]
+        # All charges for lifetime savings (no LIMIT: the log shows 20).
+        all_charges = [dict(r) for r in con.execute(
+            "SELECT * FROM charges ORDER BY start_ts DESC")]
         agg = con.execute(
             "SELECT SUM(miles) m, SUM(kwh_used) k FROM trips").fetchone()
 
@@ -1748,6 +1826,70 @@ def generate() -> None:
     # Lifetime efficiency
     lifetime_mpk = ((agg["m"] / agg["k"])
                     if agg and agg["m"] and agg["k"] else None)
+
+    # Per-session fuel savings vs a gas SUV (home + priced DC sessions).
+    # Uses each charge day's gas price and the car's lifetime efficiency
+    # for the miles conversion, so rows and hero always agree.
+    try:
+        import gasprice as _gp
+    except Exception:
+        _gp = None
+    _savings_rows = []
+    _savings_total = 0.0
+    _eff = lifetime_mpk if lifetime_mpk else 3.0
+    for ch in all_charges:
+        ctype = (ch.get("charge_type") or "").lower()
+        is_home = _is_home(ch.get("label"), ch.get("lat"), ch.get("lon")) \
+            and "dc" not in ctype
+        is_dc = "dc" in ctype
+        if not is_home and not is_dc:
+            continue
+        if is_home:
+            rate = HOME_KWH_RATE
+        else:
+            rate = ch.get("user_cost_per_kwh")
+            if rate is None:
+                continue  # DC without an entered cost: excluded from total
+        kwh = ch.get("kwh_added") or 0
+        if kwh <= 0:
+            continue
+        ch_date = _day(ch["start_ts"])
+        try:
+            gp = _gp.get_gas_price(ch_date) if _gp else GAS_PRICE_FALLBACK
+        except Exception:
+            gp = GAS_PRICE_FALLBACK
+        ev_cost = kwh * rate
+        miles = _session_miles(ch, _eff)
+        gas_cost = miles / GAS_COMPARISON_MPG * gp
+        save = gas_cost - ev_cost
+        _savings_total += save
+        _savings_rows.append({
+            "date": ch_date, "kwh": kwh, "ev_cost": ev_cost,
+            "gas_price": gp, "gas_cost": gas_cost, "save": save,
+            "is_dc": is_dc,
+        })
+    if _savings_rows:
+        _srows = "".join(
+            "<tr><td>%s</td><td>%.1f</td><td>$%.2f</td>"
+            "<td>$%.2f</td><td>$%.2f</td>"
+            '<td class="%s">$%.2f</td></tr>' % (
+                r["date"], r["kwh"], r["ev_cost"],
+                r["gas_price"], r["gas_cost"],
+                "green" if r["save"] >= 0 else "amber", r["save"])
+            for r in _savings_rows[:10]
+        )
+        savings_table = (
+            '<h3 style="margin-top:24px">Fuel savings vs gas</h3>'
+            '<div class="sub">Per charging session, priced at each '
+            'day&apos;s gas price</div>'
+            '<table class="ctab"><thead><tr>'
+            "<th>Date</th><th>kWh</th><th>EV cost</th>"
+            "<th>Gas $/gal</th><th>Gas cost</th><th>Saved</th>"
+            "</tr></thead><tbody>" + _srows + "</tbody></table>"
+        )
+    else:
+        savings_table = ""
+        _savings_total = 0.0
 
     # Battery trend: end-of-day SoC series
     eod_series = []
@@ -2020,7 +2162,9 @@ def generate() -> None:
         loc, latest.get("lat"), latest.get("lon"))
     charging_section = (
         '<h2 class="sec" id="charging">Charging</h2>'
-        + _charges_html(charges, live, live_is_home))
+        + _charges_html(charges, live, live_is_home,
+                        eff=(lifetime_mpk if lifetime_mpk else 3.0)))
+    charging_section += savings_table
     if live:
         charging_top, charging_bottom = charging_section, ""
     else:
@@ -2051,6 +2195,10 @@ def generate() -> None:
         "__LOCATION__": location_html,
         "__IDLESTAT__": idle_stat,
         "__LIFEMI__": f"{lifetime_mpk:.2f}" if lifetime_mpk else "-",
+        "__GASSAVE__": (("$%d" % int(round(_savings_total)))
+                        if _savings_rows else "-"),
+        "__GASSAVESUB__": (_gas_subtitle(_savings_rows)
+                           if _savings_rows else ""),
         "__LIFESUB__": (f"{float(os.environ.get('WATTSON_DEMO_LIFETIME_MI', agg['m'])):.1f} mi tracked" if agg["m"] else ""),
         "__TRIPMONTH__": trip_month_html,
         "__TRIPS__": trips_html,
