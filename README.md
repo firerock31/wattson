@@ -104,6 +104,15 @@ database. An analyzer turns snapshots into trips, charging sessions, and
 drain events. A report generator builds the dashboard HTML. Everything runs
 locally: your data never leaves your machine.
 
+**Polling without waking the car**
+
+The tricky part: asking a car for its status can keep it awake, and an
+awake car drains battery. So the poller runs on an adaptive schedule,
+frequent while driving, backing off when the car sleeps. Sleep detection
+uses the cloud connection state, since Rivian's power and gear fields
+report nothing useful. A lightweight daemon handles the polling on its
+own; nothing needs to wake up every few minutes just to check.
+
 > **Note:** this uses Rivian's unofficial API, which isn't publicly
 > documented and can change without notice. If it breaks, the fix is usually
 > quick, but there are no guarantees. Not affiliated with Rivian.
