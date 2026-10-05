@@ -663,7 +663,7 @@ bracket, between polls.</p>
 <button id="toTop" aria-label="Back to top"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5m-7 7 7-7 7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
 <script>
 __SCRIPT__
-</script><script>(function(){var ease=function(t){return t<.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2};document.querySelectorAll('a[href^="#"]').forEach(function(a){a.addEventListener('click',function(e){var el=document.querySelector(a.getAttribute('href'));if(!el)return;e.preventDefault();var y=el.getBoundingClientRect().top+window.scrollY-92;var s=window.scrollY,d=y-s,dur=900,t0=performance.now();(function step(t){var p=Math.min((t-t0)/dur,1);window.scrollTo(0,s+d*ease(p));if(p<1)requestAnimationFrame(step);})(t0);});});})();</script><form id="costform" method="POST" action="/api/charge-cost-form" style="position:absolute;left:-9999px;top:-9999px;width:1px;height:1px;opacity:0"><input type="hidden" name="charge_id" id="form_charge_id"><input type="hidden" name="cost_per_kwh" id="form_cost_per_kwh"></form><div id="costmodal" style="display:none;position:fixed;inset:0;z-index:100;background:rgba(0,0,0,.7);align-items:center;justify-content:center"><div style="background:#1a1d21;border:1px solid #333;border-radius:16px;padding:24px;max-width:320px;width:90%"><h3 style="margin:0 0 12px">DC charging cost</h3><p class="sub" style="margin:0 0 12px">Enter what you paid per kWh:</p><form onsubmit="saveCost();return false;" style="margin:0"><input id="costinput" type="number" step="0.01" min="0" placeholder="0.48" style="width:100%;padding:10px;font-size:16px;border-radius:8px;border:1px solid #444;background:#0b0d10;color:#fff;box-sizing:border-box"><div style="display:flex;gap:10px;margin-top:16px"><button type="submit" style="flex:1;padding:10px;border-radius:8px;border:none;background:#7ed321;color:#000;font-weight:600;cursor:pointer">Save</button><button type="button" onclick="closeCostModal()" style="flex:1;padding:10px;border-radius:8px;border:1px solid #444;background:transparent;color:#fff;cursor:pointer">Cancel</button></div></form></div></div><script>var _costChargeId=null;function openCostModal(chargeId,currentVal){_costChargeId=chargeId;document.getElementById('costinput').value=(currentVal||'');document.getElementById('costmodal').style.display='flex';document.getElementById('costinput').focus();}function closeCostModal(){document.getElementById('costmodal').style.display='none';_costChargeId=null;}function saveCost(){var v=parseFloat(document.getElementById('costinput').value);if(v===null||v===undefined||isNaN(v)||v<0){alert('Enter a valid price');return;}document.getElementById('form_charge_id').value=_costChargeId;document.getElementById('form_cost_per_kwh').value=v;document.getElementById('costform').submit();}document.getElementById('costmodal').addEventListener('click',function(e){if(e.target===this)closeCostModal();});document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=document.getElementById('costmodal');if(m&&m.style.display!=='none')closeCostModal();}});</script></body></html>"""
+</script><script>(function(){var ease=function(t){return t<.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2};document.querySelectorAll('a[href^="#"]').forEach(function(a){a.addEventListener('click',function(e){var el=document.querySelector(a.getAttribute('href'));if(!el)return;e.preventDefault();var y=el.getBoundingClientRect().top+window.scrollY-92;var s=window.scrollY,d=y-s,dur=900,t0=performance.now();(function step(t){var p=Math.min((t-t0)/dur,1);window.scrollTo(0,s+d*ease(p));if(p<1)requestAnimationFrame(step);})(t0);});});})();</script><form id="costform" method="POST" action="/api/charge-cost-form" style="position:absolute;left:-9999px;top:-9999px;width:1px;height:1px;opacity:0"><input type="hidden" name="charge_id" id="form_charge_id"><input type="hidden" name="cost_per_kwh" id="form_cost_per_kwh"><input type="hidden" name="start_ts" id="form_start_ts"></form><div id="costmodal" style="display:none;position:fixed;inset:0;z-index:100;background:rgba(0,0,0,.7);align-items:center;justify-content:center"><div style="background:#1a1d21;border:1px solid #333;border-radius:16px;padding:24px;max-width:320px;width:90%"><h3 style="margin:0 0 12px">DC charging cost</h3><p class="sub" style="margin:0 0 12px">Enter what you paid per kWh:</p><form onsubmit="saveCost();return false;" style="margin:0"><input id="costinput" type="number" step="0.01" min="0" placeholder="0.48" style="width:100%;padding:10px;font-size:16px;border-radius:8px;border:1px solid #444;background:#0b0d10;color:#fff;box-sizing:border-box"><div style="display:flex;gap:10px;margin-top:16px"><button type="submit" style="flex:1;padding:10px;border-radius:8px;border:none;background:#7ed321;color:#000;font-weight:600;cursor:pointer">Save</button><button type="button" onclick="closeCostModal()" style="flex:1;padding:10px;border-radius:8px;border:1px solid #444;background:transparent;color:#fff;cursor:pointer">Cancel</button></div><div style="margin-top:12px;text-align:center"><a href="#" onclick="clearCost();return false;" style="color:#888;font-size:12px">clear entered cost</a></div></form></div></div><script>var _costChargeId=null;var _costStartTs=null;function openCostModal(chargeId,currentVal,startTs){_costChargeId=chargeId;_costStartTs=(startTs===undefined||startTs===null)?'':startTs;document.getElementById('costinput').value=((currentVal===null||currentVal===undefined)?'':currentVal);document.getElementById('costmodal').style.display='flex';document.getElementById('costinput').focus();}function closeCostModal(){document.getElementById('costmodal').style.display='none';_costChargeId=null;}function saveCost(){var v=parseFloat(document.getElementById('costinput').value);if(v===null||v===undefined||isNaN(v)||v<0){alert('Enter a valid price');return;}document.getElementById('form_charge_id').value=_costChargeId;document.getElementById('form_start_ts').value=_costStartTs;document.getElementById('form_cost_per_kwh').value=v;document.getElementById('costform').submit();}function clearCost(){if(!confirm('Clear the entered cost for this session?'))return;document.getElementById('form_charge_id').value=_costChargeId;document.getElementById('form_start_ts').value=_costStartTs;document.getElementById('form_cost_per_kwh').value='';document.getElementById('costform').submit();}document.getElementById('costmodal').addEventListener('click',function(e){if(e.target===this)closeCostModal();});document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=document.getElementById('costmodal');if(m&&m.style.display!=='none')closeCostModal();}});</script></body></html>"""
 
 _BOLT_SVG = ('<svg class="bolt" viewBox="0 0 24 24" aria-hidden="true">'
             '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>'
@@ -1514,12 +1514,15 @@ def _charge_row_html(c: dict, scale: float, open_: bool,
             cost_bit = f'<span><b>${cost:.2f}</b> cost</span>'
     savings_bit = ""
     _ctype = (c.get("charge_type") or "").lower()
+    # DC-first, matching generate(): a DC session at home still counts as DC.
+    _row_home = _is_home(c.get("label"), c.get("lat"), c.get("lon")) \
+        and "dc" not in _ctype
     try:
         import gasprice as _gp2
         _gp_val = _gp2.get_gas_price(_day(c["start_ts"]))
     except Exception:
         _gp_val = GAS_PRICE_FALLBACK
-    if _is_home(c.get("label"), c.get("lat"), c.get("lon")):
+    if _row_home:
         _kwh2 = c.get("kwh_added") or 0
         _miles2 = _session_miles(c, eff)
         if _kwh2 > 0 and _miles2 > 0:
@@ -1544,15 +1547,15 @@ def _charge_row_html(c: dict, scale: float, open_: bool,
             savings_bit = ('<span><b class="%s">$%.2f</b> %s '
                            '<span class="dim">($%.2f/gal, $%.2f/kWh)</span> '
                            '<a href="#" onclick="event.stopPropagation();'
-                           'openCostModal(%d, %.2f);return false;" '
+                           'openCostModal(%d, %.2f, %d);return false;" '
                            'style="color:#7ed321;font-size:12px">edit</a></span>'
                            % (_cls3, abs(_save3), _verb3, _gp_val, _dc_rate,
-                              c["id"], _dc_rate))
+                              c["id"], _dc_rate, c["start_ts"]))
         else:
             savings_bit = ('<span><a href="#" onclick="event.stopPropagation();'
-                           'openCostModal(%d, 0);return false;" '
+                           'openCostModal(%d, 0, %d);return false;" '
                            'style="color:#7ed321">? add cost</a></span>'
-                           % c["id"])
+                           % (c["id"], c["start_ts"]))
     cap = (f'{c["soc_start"]:.0f}% &rarr; {c["soc_end"]:.0f}% &middot; '
            f'{c["avg_kw"] or "-"} kW avg')
     mmap = _point_map_html(c.get("lat"), c.get("lon"), c.get("label") or "", f"charge-{c['start_ts']}")
@@ -1755,6 +1758,12 @@ def _sleep_share(snapshots, t1: int, t2: int, hrs: float) -> dict:
             "unknown_h": round(hrs * nu / len(win), 1)}
 
 
+def _fmt_money(v: float, decimals: int = 0) -> str:
+    """$12 / -$12 (never $-12)."""
+    s = ("$%d" if decimals == 0 else "$%." + str(decimals) + "f") % abs(v)
+    return ("-" if v < 0 else "") + s
+
+
 def _gas_subtitle(rows: list[dict]) -> str:
     """Two-line hero subtitle: N home sessions / N DC sessions."""
     n_home = sum(1 for r in rows if not r.get("is_dc"))
@@ -1872,10 +1881,11 @@ def generate() -> None:
         _srows = "".join(
             "<tr><td>%s</td><td>%.1f</td><td>$%.2f</td>"
             "<td>$%.2f</td><td>$%.2f</td>"
-            '<td class="%s">$%.2f</td></tr>' % (
+            '<td class="%s">%s</td></tr>' % (
                 r["date"], r["kwh"], r["ev_cost"],
                 r["gas_price"], r["gas_cost"],
-                "green" if r["save"] >= 0 else "amber", r["save"])
+                "green" if r["save"] >= 0 else "amber",
+                _fmt_money(r["save"], 2))
             for r in _savings_rows[:10]
         )
         savings_table = (
@@ -2195,7 +2205,7 @@ def generate() -> None:
         "__LOCATION__": location_html,
         "__IDLESTAT__": idle_stat,
         "__LIFEMI__": f"{lifetime_mpk:.2f}" if lifetime_mpk else "-",
-        "__GASSAVE__": (("$%d" % int(round(_savings_total)))
+        "__GASSAVE__": (_fmt_money(int(round(_savings_total)))
                         if _savings_rows else "-"),
         "__GASSAVESUB__": (_gas_subtitle(_savings_rows)
                            if _savings_rows else ""),

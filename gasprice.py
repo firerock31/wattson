@@ -74,6 +74,12 @@ def _load_history():
     return {}
 
 
+# Process-local cache: guards against the timeout cascade if the disk
+# cache is unwritable (then `today not in hist` would stay True and every
+# charge would trigger its own 15s AAA attempt).
+_mem_cache = {}
+
+
 def _save_history(hist):
     try:
         CACHE_PATH.write_text(json.dumps(hist))
@@ -107,9 +113,14 @@ def get_gas_price(for_date=None):
         for_date = datetime.now(tz).date().isoformat()
     today = datetime.now(tz).date().isoformat()
 
+    if for_date in _mem_cache:
+        return _mem_cache[for_date]
+
     hist = _load_history()
     if for_date in hist:
-        return float(hist[for_date]["price"])
+        price = float(hist[for_date]["price"])
+        _mem_cache[for_date] = price
+        return price
 
     # Ensure we have today's price (fetch if needed, at most once per day).
     if today not in hist:
@@ -128,5 +139,9 @@ def get_gas_price(for_date=None):
         _save_history(hist)
 
     if today in hist:
-        return float(hist[today]["price"])
-    return _fallback_price()
+        price = float(hist[today]["price"])
+        _mem_cache[today] = price
+        return price
+    price = _fallback_price()
+    _mem_cache[today] = price
+    return price

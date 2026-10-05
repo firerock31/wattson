@@ -15,6 +15,7 @@ services:
       RIVIAN_TOKENS_PATH: /data/tokens.enc
       RIVIAN_TOKEN_KEY_PATH: /data/.token_key
       RIVIAN_REPORT_PATH: /app/www/rivian-dashboard.html
+      WATTSON_GAS_CACHE: /data/gas_price_history.json
     volumes:
       - ./data:/data
       - ./www:/app/www
@@ -26,11 +27,15 @@ services:
     env_file: .env
     environment:
       RIVIAN_DB_PATH: /data/rivian.db
+      RIVIAN_TOKENS_PATH: /data/tokens.enc
+      RIVIAN_TOKEN_KEY_PATH: /data/.token_key
       RIVIAN_REPORT_PATH: /app/www/rivian-dashboard.html
       WATTSON_API_HOST: 0.0.0.0
+      WATTSON_GAS_CACHE: /data/gas_price_history.json
     volumes:
       - ./data:/data
       - ./www:/app/www
+      - ./assets:/app/assets:ro
     command: ["python", "api.py"]
     restart: unless-stopped
 
