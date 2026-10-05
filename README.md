@@ -80,6 +80,8 @@ and your phone. Free, five minutes, no port forwarding.
 
 ## Try the demo (no Rivian account needed)
 
+**[Click through the live demo](https://www.givemeasec.com/wattson-demo/)**, or build it yourself:
+
 ```bash
 python demo.py
 ```
