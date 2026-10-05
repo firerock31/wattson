@@ -1,6 +1,7 @@
 # Wattson
 
 **Gary watches your Rivian. Wattson knows it.**
+*A friendly dashboard for your Rivian. Easy to read, useful, and free.*
 
 ## Why this exists
 
@@ -12,8 +13,8 @@ overnight. The app shows none of that.
 So I built this. It was supposed to be a small weekend thing. It was not.
 
 Along the way I figured out how Rivian's unofficial API works, how to poll a
-car without keeping it awake, and how to handle credentials without being
-careless about it (only encrypted session tokens, never your password). There
+car without keeping it awake, and how to not be careless with credentials (encrypted tokens only, your
+password never touches disk). There
 were bugs, rewrites, and one very confusing stretch where my overnight drain
 numbers made no sense at all.
 
@@ -37,8 +38,7 @@ promises. Take it, run it, break it, make it yours.
   SUV, priced at each charge day's AAA gas price. Home sessions count
   automatically; DC fast-charge costs are entered by hand (click **? add
   cost** on the charging-log row).
-- **Clickable hero cards** — the top stats now jump to their detail
-  sections, with hover states.
+- **Clickable hero cards** — the top stats are clickable now and jump to their detail sections.
 - **Savings breakdown table** — every session with AC/DC type, kWh, EV
   cost, and gas equivalent.
 - **Section navigation** — sticky nav with scrollspy that follows you
@@ -97,7 +97,7 @@ upload it anywhere to share the demo.
 ## How it works
 
 A poller hits Rivian's API on an adaptive schedule, frequent while driving,
-backed off when the car is asleep, and stores snapshots in a local SQLite
+backing off when the car sleeps, and stores snapshots in a local SQLite
 database. An analyzer turns snapshots into trips, charging sessions, and
 drain events. A report generator builds the dashboard HTML. Everything runs
 locally: your data never leaves your machine.
@@ -136,14 +136,13 @@ hero. (Optional; the layout holds without it.)
 
 The hero card shows lifetime savings against driving a gas SUV
 (`WATTSON_GAS_COMPARISON_MPG`, default 25 MPG). Each charging session is
-priced individually: EV cost is kWh times your home rate (or the DC price
-you entered), gas cost is the session's miles divided by the comparison MPG
-times that day's AAA gas price. Home sessions count automatically; DC fast
+priced individually. EV cost is kWh times your home rate (or the DC
+price you entered). Gas cost is the session's miles divided by the
+comparison MPG, times that day's AAA gas price. Home sessions count automatically; DC fast
 charges are excluded until you record what you paid.
 
 To record a DC price, click **? add cost** on the charging-log row. A small
-form posts to the bundled API service (`api.py`, proxied at `/api/` by
-nginx), which saves the $/kWh rate and regenerates the dashboard. Editing a
+form saves the $/kWh rate and regenerates the dashboard. Editing a
 priced session reopens the form with the current value. Entering `$0.00`
 marks a free session.
 
