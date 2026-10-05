@@ -1903,7 +1903,7 @@ def generate() -> None:
     else:
         savings_table = (
             '<div class="card" style="margin-top:16px">'
-            '"<h3>Fuel savings by session</h3>"'
+            "<h3>Fuel savings by session</h3>"
             '<p class="note">No charges recorded yet to compare against gas.</p>'
             "</div>"
         )
