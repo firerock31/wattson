@@ -31,6 +31,19 @@ promises. Take it, run it, break it, make it yours.
   SUV, priced at each charge day's AAA gas price
 - **Drive history**, the record Rivian never kept
 
+## Recent updates
+
+- **Fuel savings vs gas** — lifetime and per-session savings against a gas
+  SUV, priced at each charge day's AAA gas price. Home sessions count
+  automatically; DC fast-charge costs are entered by hand (click **? add
+  cost** on the charging-log row).
+- **Clickable hero cards** — the top stats now jump to their detail
+  sections, with hover states.
+- **Savings breakdown table** — every session with AC/DC type, kWh, EV
+  cost, and gas equivalent.
+- **Section navigation** — sticky nav with scrollspy that follows you
+  down the page.
+
 ## Quick start
 
 **You need:** a machine that's always on (Raspberry Pi, old laptop, NAS, or a
