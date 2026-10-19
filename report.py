@@ -439,6 +439,15 @@ body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",Helvetica,Arial,
 .pill{background:var(--card2);border-radius:999px;padding:10px 18px;
   font-weight:700;font-size:15px}
 .updated{color:var(--faint);font-size:13px}
+@media(max-width:640px){
+  .nav-inner{height:auto;flex-wrap:wrap;padding:8px 16px 0;gap:4px 12px}
+  .nav-updated{margin-left:auto}
+  .nav-links{display:flex;order:3;flex:0 0 100%;overflow-x:auto}
+  .nav-links a{display:inline-flex;align-items:center;flex:none;min-height:44px}
+  body{padding-top:112px}
+  #daily,#battery,#charging,#savings,#top{scroll-margin-top:120px}
+}
+#poll-age{display:block;text-align:right}
 
 .hero{padding:28px 4px 8px}
 .hero-top{display:flex;justify-content:space-between;gap:10px;align-items:center}
@@ -549,6 +558,8 @@ details.aday summary .dim{font-weight:400;font-size:14px}
   vertical-align:1px}
 .trip-stats{display:flex;gap:16px;margin-top:8px;color:var(--dim);font-size:14px}
 .trip-stats b{color:var(--text);font-weight:700}
+.cost-action{display:inline-flex;align-items:center;justify-content:center;
+  min-width:44px;min-height:44px;padding:6px 8px}
 details.chargerow{border-top:1px solid #2c2c2e}
 details.chargerow:first-of-type{margin-top:6px}
 details.chargerow summary{cursor:pointer;list-style:none;padding:12px 0 2px}
@@ -599,7 +610,8 @@ table.drain tr:last-child td,table.ctab tr:last-child td{border-bottom:0}
     <a href="#charging">Charging</a>
     <a href="#savings">Savings</a>
   </div>
-  <div class="nav-updated">__DEMOPILL__Updated __UPDATED__</div>
+  <div class="nav-updated">__DEMOPILL__<span>Updated __UPDATED__<span
+    id="poll-age" data-ts="__UPDATED_TS__"></span></span></div>
 </div></nav>
 <div class="wrap">
 
@@ -666,13 +678,34 @@ bracket, between polls.</p>
 <button id="toTop" aria-label="Back to top"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5m-7 7 7-7 7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
 <script>
 __SCRIPT__
-</script><script>var scrollRaf=null;(function(){var ease=function(t){return t<.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2};document.querySelectorAll('a[href^="#"]').forEach(function(a){a.addEventListener('click',function(e){var el=document.querySelector(a.getAttribute('href'));if(!el)return;e.preventDefault();var y=el.getBoundingClientRect().top+window.scrollY-92;cancelAnimationFrame(scrollRaf);var s=window.scrollY,d=y-s,dur=900,t0=performance.now();(function step(t){var p=Math.min((t-t0)/dur,1);window.scrollTo(0,s+d*ease(p));if(p<1)scrollRaf=requestAnimationFrame(step);})(t0);});});})();</script><script>(function(){var links={};document.querySelectorAll('.nav-links a[href^="#"]').forEach(function(a){links[a.getAttribute('href').slice(1)]=a});var ids=Object.keys(links);var secs=ids.map(function(id){return document.getElementById(id)}).filter(Boolean).sort(function(a,b){return a.getBoundingClientRect().top-b.getBoundingClientRect().top});if(!secs.length)return;var cur='',locked=null,lockTimer=null;function setActive(id){if(id===cur)return;cur=id;ids.forEach(function(k){links[k].classList.toggle('active',k===id)})}function update(){if(window.innerWidth<=640)return;if(locked){setActive(locked);return}var line=120,id='';secs.forEach(function(s){if(s.getBoundingClientRect().top<=line){id=s.id}});var lastSec=secs[secs.length-1];var distToBottom=document.documentElement.scrollHeight-(window.innerHeight+window.scrollY);if(lastSec&&distToBottom<=300&&lastSec.getBoundingClientRect().top<window.innerHeight){id=lastSec.id}setActive(id)}document.querySelectorAll('.nav-links a[href^="#"]').forEach(function(a){a.addEventListener('click',function(){locked=a.getAttribute('href').slice(1);setActive(locked);clearTimeout(lockTimer);lockTimer=setTimeout(function(){locked=null;update()},1000)})});var ticking=false;window.addEventListener('scroll',function(){if(ticking)return;ticking=true;requestAnimationFrame(function(){ticking=false;update()})},{passive:true});update();})();</script><form id="costform" method="POST" action="/api/charge-cost-form" style="position:absolute;left:-9999px;top:-9999px;width:1px;height:1px;opacity:0"><input type="hidden" name="charge_id" id="form_charge_id"><input type="hidden" name="cost_per_kwh" id="form_cost_per_kwh"><input type="hidden" name="start_ts" id="form_start_ts"></form><div id="costmodal" style="display:none;position:fixed;inset:0;z-index:100;background:rgba(0,0,0,.7);align-items:center;justify-content:center"><div style="background:#1a1d21;border:1px solid #333;border-radius:16px;padding:24px;max-width:320px;width:90%"><h3 style="margin:0 0 12px">DC charging cost</h3><p class="sub" style="margin:0 0 12px">Enter what you paid per kWh:</p><form onsubmit="saveCost();return false;" style="margin:0"><input id="costinput" type="number" step="0.01" min="0" placeholder="0.48" style="width:100%;padding:10px;font-size:16px;border-radius:8px;border:1px solid #444;background:#0b0d10;color:#fff;box-sizing:border-box"><div style="display:flex;gap:10px;margin-top:16px"><button type="submit" style="flex:1;padding:10px;border-radius:8px;border:none;background:#7ed321;color:#000;font-weight:600;cursor:pointer">Save</button><button type="button" onclick="closeCostModal()" style="flex:1;padding:10px;border-radius:8px;border:1px solid #444;background:transparent;color:#fff;cursor:pointer">Cancel</button></div><div style="margin-top:12px;text-align:center"><a href="#" onclick="clearCost();return false;" style="color:#888;font-size:12px">clear entered cost</a></div></form></div></div><script>var _costChargeId=null;var _costStartTs=null;function openCostModal(chargeId,currentVal,startTs){_costChargeId=chargeId;_costStartTs=(startTs===undefined||startTs===null)?'':startTs;document.getElementById('costinput').value=((currentVal===null||currentVal===undefined)?'':currentVal);document.getElementById('costmodal').style.display='flex';document.getElementById('costinput').focus();}function closeCostModal(){document.getElementById('costmodal').style.display='none';_costChargeId=null;}function saveCost(){var v=parseFloat(document.getElementById('costinput').value);if(v===null||v===undefined||isNaN(v)||v<0){alert('Enter a valid price');return;}document.getElementById('form_charge_id').value=_costChargeId;document.getElementById('form_start_ts').value=_costStartTs;document.getElementById('form_cost_per_kwh').value=v;document.getElementById('costform').submit();}function clearCost(){if(!confirm('Clear the entered cost for this session?'))return;document.getElementById('form_charge_id').value=_costChargeId;document.getElementById('form_start_ts').value=_costStartTs;document.getElementById('form_cost_per_kwh').value='';document.getElementById('costform').submit();}document.getElementById('costmodal').addEventListener('click',function(e){if(e.target===this)closeCostModal();});document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=document.getElementById('costmodal');if(m&&m.style.display!=='none')closeCostModal();}});</script></body></html>"""
+</script><script>var scrollRaf=null;(function(){var ease=function(t){return t<.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2};document.querySelectorAll('a[href^="#"]').forEach(function(a){a.addEventListener('click',function(e){var el=document.querySelector(a.getAttribute('href'));if(!el)return;e.preventDefault();var y=el.getBoundingClientRect().top+window.scrollY-document.querySelector('.sitenav').getBoundingClientRect().bottom-12;cancelAnimationFrame(scrollRaf);var s=window.scrollY,d=y-s,dur=900,t0=performance.now();(function step(t){var p=Math.min((t-t0)/dur,1);window.scrollTo(0,s+d*ease(p));if(p<1)scrollRaf=requestAnimationFrame(step);})(t0);});});})();</script><script>(function(){var links={};document.querySelectorAll('.nav-links a[href^="#"]').forEach(function(a){links[a.getAttribute('href').slice(1)]=a});var ids=Object.keys(links);var secs=ids.map(function(id){return document.getElementById(id)}).filter(Boolean).sort(function(a,b){return a.getBoundingClientRect().top-b.getBoundingClientRect().top});if(!secs.length)return;var cur='',locked=null,lockTimer=null;function setActive(id){if(id===cur)return;cur=id;ids.forEach(function(k){links[k].classList.toggle('active',k===id)})}function update(){if(locked){setActive(locked);return}var line=120,id='';secs.forEach(function(s){if(s.getBoundingClientRect().top<=line){id=s.id}});var lastSec=secs[secs.length-1];var distToBottom=document.documentElement.scrollHeight-(window.innerHeight+window.scrollY);if(lastSec&&distToBottom<=300&&lastSec.getBoundingClientRect().top<window.innerHeight){id=lastSec.id}setActive(id)}document.querySelectorAll('.nav-links a[href^="#"]').forEach(function(a){a.addEventListener('click',function(){locked=a.getAttribute('href').slice(1);setActive(locked);clearTimeout(lockTimer);lockTimer=setTimeout(function(){locked=null;update()},1000)})});var ticking=false;window.addEventListener('scroll',function(){if(ticking)return;ticking=true;requestAnimationFrame(function(){ticking=false;update()})},{passive:true});update();})();</script><form id="costform" method="POST" action="/api/charge-cost-form" style="position:absolute;left:-9999px;top:-9999px;width:1px;height:1px;opacity:0"><input type="hidden" name="charge_id" id="form_charge_id"><input type="hidden" name="cost_per_kwh" id="form_cost_per_kwh"><input type="hidden" name="start_ts" id="form_start_ts"></form><div id="costmodal" style="display:none;position:fixed;inset:0;z-index:100;background:rgba(0,0,0,.7);align-items:center;justify-content:center"><div style="background:#1a1d21;border:1px solid #333;border-radius:16px;padding:24px;max-width:320px;width:90%"><h3 style="margin:0 0 12px">DC charging cost</h3><p class="sub" style="margin:0 0 12px">Enter what you paid per kWh:</p><form onsubmit="saveCost();return false;" style="margin:0"><input id="costinput" type="number" inputmode="decimal" step="0.01" min="0" placeholder="0.48" style="width:100%;padding:10px;font-size:16px;border-radius:8px;border:1px solid #444;background:#0b0d10;color:#fff;box-sizing:border-box"><div style="display:flex;gap:10px;margin-top:16px"><button type="submit" style="flex:1;padding:10px;border-radius:8px;border:none;background:#7ed321;color:#000;font-weight:600;cursor:pointer">Save</button><button type="button" onclick="closeCostModal()" style="flex:1;padding:10px;border-radius:8px;border:1px solid #444;background:transparent;color:#fff;cursor:pointer">Cancel</button></div><div style="margin-top:12px;text-align:center"><a class="cost-action" href="#" onclick="clearCost();return false;" style="color:#888;font-size:12px">clear entered cost</a></div></form></div></div><script>var _costChargeId=null;var _costStartTs=null;function openCostModal(chargeId,currentVal,startTs){_costChargeId=chargeId;_costStartTs=(startTs===undefined||startTs===null)?'':startTs;document.getElementById('costinput').value=((currentVal===null||currentVal===undefined)?'':currentVal);document.getElementById('costmodal').style.display='flex';document.getElementById('costinput').focus();}function closeCostModal(){document.getElementById('costmodal').style.display='none';_costChargeId=null;}function saveCost(){var v=parseFloat(document.getElementById('costinput').value);if(v===null||v===undefined||isNaN(v)||v<0){alert('Enter a valid price');return;}document.getElementById('form_charge_id').value=_costChargeId;document.getElementById('form_start_ts').value=_costStartTs;document.getElementById('form_cost_per_kwh').value=v;document.getElementById('costform').submit();}function clearCost(){if(!confirm('Clear the entered cost for this session?'))return;document.getElementById('form_charge_id').value=_costChargeId;document.getElementById('form_start_ts').value=_costStartTs;document.getElementById('form_cost_per_kwh').value='';document.getElementById('costform').submit();}document.getElementById('costmodal').addEventListener('click',function(e){if(e.target===this)closeCostModal();});document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=document.getElementById('costmodal');if(m&&m.style.display!=='none')closeCostModal();}});</script></body></html>"""
 
 _BOLT_SVG = ('<svg class="bolt" viewBox="0 0 24 24" aria-hidden="true">'
             '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>'
             '</svg>')
 
 JS_TEMPLATE = """
+(function() {
+  var el = document.getElementById('poll-age');
+  if (!el || !el.dataset.ts) return;
+  var timestamp = Number(el.dataset.ts);
+  if (!Number.isFinite(timestamp)) return;
+  function updatePollAge() {
+    var seconds = Math.max(0, Math.floor(Date.now() / 1000 - timestamp));
+    var age = 'just now';
+    if (seconds >= 86400) {
+      var days = Math.floor(seconds / 86400);
+      age = days + (days === 1 ? ' day ago' : ' days ago');
+    } else if (seconds >= 3600) {
+      age = Math.floor(seconds / 3600) + ' hr ago';
+    } else if (seconds >= 60) {
+      age = Math.floor(seconds / 60) + ' min ago';
+    }
+    el.textContent = 'Last poll ' + age;
+  }
+  updatePollAge();
+  setInterval(updatePollAge, 60000);
+})();
 /* Evaluated at use time, not cached, so an OS-level change while the page is
    open takes effect on the next interaction. */
 function prefersReducedMotion() {
@@ -1554,12 +1587,14 @@ def _charge_row_html(c: dict, scale: float, open_: bool,
                            '$%.2f/kWh)</span> '
                            '<a href="#" onclick="event.stopPropagation();'
                            'openCostModal(%d, %.2f, %d);return false;" '
+                           'class="cost-action" '
                            'style="color:#7ed321;font-size:12px">edit</a></span>'
                            % (_cls3, abs(_save3), _verb3, _ev_c3, _gp_val,
                               _dc_rate, c["id"], _dc_rate, c["start_ts"]))
         else:
             savings_bit = ('<span><a href="#" onclick="event.stopPropagation();'
                            'openCostModal(%d, 0, %d);return false;" '
+                           'class="cost-action" '
                            'style="color:#7ed321">? add cost</a></span>'
                            % (c["id"], c["start_ts"]))
     cap = (f'{c["soc_start"]:.0f}% &rarr; {c["soc_end"]:.0f}% &middot; '
@@ -1625,8 +1660,8 @@ def _fmt_money(v: float, decimals: int = 0) -> str:
     return ("-" if v < 0 else "") + s
 
 
-def _gas_subtitle(rows: list[dict]) -> str:
-    """Two-line hero subtitle: N home sessions / N DC sessions."""
+def _gas_subtitle(rows: list[dict], unpriced_dc: int = 0) -> str:
+    """Included home/DC sessions and any unpriced DC exclusions."""
     n_home = sum(1 for r in rows if not r.get("is_dc"))
     n_dc = sum(1 for r in rows if r.get("is_dc"))
     parts = []
@@ -1634,6 +1669,9 @@ def _gas_subtitle(rows: list[dict]) -> str:
         parts.append("%d home session%s" % (n_home, "" if n_home == 1 else "s"))
     if n_dc:
         parts.append("%d DC session%s" % (n_dc, "" if n_dc == 1 else "s"))
+    if unpriced_dc:
+        parts.append("%d unpriced DC session%s excluded" %
+                     (unpriced_dc, "" if unpriced_dc == 1 else "s"))
     return "<br>".join(parts)
 
 
@@ -1662,9 +1700,10 @@ def _idle_table(periods: list[dict], bad: set) -> str:
             f"<td>{int(o.get('wake_count') or 0)}</td></tr>")
     note = ('<p class="note"><span class="warn">*</span> unusually high vs '
             'baseline.</p>' if bad else '')
-    return ('<table class="drain"><tr><th>Idle period</th><th>Duration</th>'
+    return ('<div style="overflow-x:auto"><table class="drain">'
+            '<tr><th>Idle period</th><th>Duration</th>'
             '<th>Avg draw</th><th>Lost</th><th>Wake-ups</th></tr>'
-            + "".join(rows) + "</table>" + note)
+            + "".join(rows) + "</table></div>" + note)
 
 
 # ---------------------------------------------------------------- generate
@@ -1792,6 +1831,7 @@ def generate() -> None:
         _gp = None
     _savings_rows = []
     _savings_total = 0.0
+    _unpriced_dc = 0
     _eff = lifetime_mpk if lifetime_mpk else 3.0
     for ch in all_charges:
         ctype = (ch.get("charge_type") or "").lower()
@@ -1805,6 +1845,7 @@ def generate() -> None:
         else:
             rate = ch.get("user_cost_per_kwh")
             if rate is None:
+                _unpriced_dc += 1
                 continue  # DC without an entered cost: excluded from total
         kwh = ch.get("kwh_added") or 0
         if kwh <= 0:
@@ -1849,10 +1890,18 @@ def generate() -> None:
         savings_table = (
             '<div class="card" style="margin-top:16px">'
             "<h3>Fuel savings by session</h3>"
-            '<p class="note">No charges recorded yet to compare against gas.</p>'
+            '<p class="note">'
+            + ("Enter a DC price in the charging log to compare those sessions."
+               if _unpriced_dc else
+               "No charges recorded yet to compare against gas.")
+            + "</p>"
             "</div>"
         )
         _savings_total = 0.0
+    savings_table += (
+        '<p class="note">Comparison assumes %g MPG; $%.2f/gal is used '
+        'when a gas price is unavailable.</p>' %
+        (GAS_COMPARISON_MPG, GAS_PRICE_FALLBACK))
 
     # Battery trend: end-of-day SoC series
     eod_series = []
@@ -2135,6 +2184,7 @@ def generate() -> None:
         "__BRAND__": _esc(brand),
         "__DEMOPILL__": demopill,
         "__UPDATED__": _fmt_ts(latest.get("ts", now)),
+        "__UPDATED_TS__": str(latest.get("ts", "")),
         "__RANGE__": f"{rng:.0f} mi" if rng else "-",
         "__CARTAG__": car_tag,
         "__SOC__": f"{soc:.0f}%" if soc is not None else "-",
@@ -2148,8 +2198,7 @@ def generate() -> None:
         "__LIFEMI__": f"{lifetime_mpk:.2f}" if lifetime_mpk else "-",
         "__GASSAVE__": (_fmt_money(int(round(_savings_total)))
                         if _savings_rows else "-"),
-        "__GASSAVESUB__": (_gas_subtitle(_savings_rows)
-                           if _savings_rows else ""),
+        "__GASSAVESUB__": _gas_subtitle(_savings_rows, _unpriced_dc),
         "__LIFESUB__": (f"{float(os.environ.get('WATTSON_DEMO_LIFETIME_MI', agg['m'])):.1f} mi tracked" if agg["m"] else ""),
         "__TRIPMONTH__": trip_month_html,
         "__TRIPS__": trips_html,
