@@ -2154,7 +2154,7 @@ def generate() -> None:
         "__BRAND__": _esc(brand),
         "__DEMOPILL__": demopill,
         "__UPDATED__": _fmt_ts(latest.get("ts", now)),
-        "__UPDATED_TS__": latest.get("ts", ""),
+        "__UPDATED_TS__": str(latest.get("ts", "")),
         "__RANGE__": f"{rng:.0f} mi" if rng else "-",
         "__CARTAG__": car_tag,
         "__SOC__": f"{soc:.0f}%" if soc is not None else "-",
