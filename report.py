@@ -1604,8 +1604,12 @@ def _charges_html(charges: list[dict], live: dict | None = None,
         scale = max(ch["kwh_added"] for ch in hist) * 1.15 or 1.0
         rows = "".join(_charge_row_html(c, scale, open_=(i == 0), eff=eff)
                        for i, c in enumerate(hist))
+        export = ("" if os.environ.get("WATTSON_DEMO") else
+                  '<a href="/api/charges.csv" '
+                  'style="font-size:14px;color:var(--dim)">Export CSV</a>')
         parts.append(
-            f'<div class="card"><h3>Charging log</h3>'
+            f'<div class="card"><h3 class="row"><span>Charging log</span>'
+            f'{export}</h3>'
             f'{_charge_month_summary(hist)}'
             f'{rows}</div>')
     footnote = ('<p class="note">Home charging costed at $%.2f/kWh '

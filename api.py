@@ -1,14 +1,18 @@
-"""Wattson API: handles the DC charging-cost form POST from the dashboard.
+"""Wattson API: charging-cost entry, history export, and dashboard login.
 
 Run alongside the dashboard (see docker-compose.yml). The dashboard itself
-is static HTML; this small Flask app only exists so users can record what
+is static HTML; this small Flask app lets users export sessions and record what
 they paid per kWh at public DC fast chargers, which feeds the fuel-savings
 math on the next dashboard regeneration. When WATTSON_DASHBOARD_TOKEN is
 set it also serves the login page and the check nginx runs before every
 dashboard request (see dashboard_auth.py).
 """
 import os
-from flask import Flask, request, redirect, jsonify
+import csv
+from contextlib import closing
+from datetime import datetime, timezone
+import io
+from flask import Flask, request, redirect, jsonify, Response
 import sqlite3
 import math
 import time
@@ -30,7 +34,7 @@ LOGIN_ERRORS = {
 
 
 def _err_page(msg, code):
-    """Friendly error page instead of a bare string on form POST failures."""
+    """Friendly error page instead of a bare string on API failures."""
     return (
         '<html><head><meta name="viewport" content="width=device-width,'
         ' initial-scale=1"></head>'
@@ -39,6 +43,50 @@ def _err_page(msg, code):
         f"<p>{msg}</p>"
         '<p><a href="/#charging" style="color:#7ed321">Back to dashboard</a></p>'
         "</body></html>", code)
+
+
+def _csv_cell(value):
+    # Charger names are external text, not spreadsheet formulas.
+    if isinstance(value, str) and (
+            value.startswith(("\t", "\r", "\n"))
+            or value.lstrip().startswith(("=", "+", "-", "@"))):
+        return "'" + value
+    return value
+
+
+@app.route("/api/charges.csv")
+def export_charges():
+    if not auth.authorized(request.headers.get("Authorization"),
+                           request.cookies.get(SESSION_COOKIE)):
+        return "", 401
+    output = io.StringIO(newline="")
+    writer = csv.writer(output)
+    writer.writerow([
+        "start_utc", "end_utc", "charge_type", "label", "minutes",
+        "kwh_added", "miles_added", "avg_kw", "soc_start", "soc_end",
+        "user_cost_per_kwh",
+    ])
+    try:
+        with closing(sqlite3.connect(
+                DB_PATH.resolve().as_uri() + "?mode=ro",
+                uri=True, timeout=30)) as con:
+            for row in con.execute(
+                    "SELECT start_ts, end_ts, charge_type, label, minutes,"
+                    " kwh_added, miles_added, avg_kw, soc_start, soc_end,"
+                    " user_cost_per_kwh FROM charges ORDER BY start_ts"):
+                writer.writerow([
+                    datetime.fromtimestamp(ts, timezone.utc).isoformat()
+                    for ts in row[:2]
+                ] + [_csv_cell(value) for value in row[2:]])
+    except sqlite3.Error:
+        app.logger.exception("Charging CSV export failed")
+        return _err_page("Charging history is unavailable. Please try again.",
+                         503)
+    response = Response(output.getvalue(), mimetype="text/csv")
+    response.headers["Content-Disposition"] = (
+        'attachment; filename="wattson-charges.csv"')
+    response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 @app.route("/api/charge-cost-form", methods=["POST"])

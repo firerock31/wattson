@@ -176,6 +176,12 @@ form saves the $/kWh rate and regenerates the dashboard. Editing a
 priced session reopens the form with the current value. Entering `$0.00`
 marks a free session.
 
+Use **Export CSV** in the charging log to download all stored charging sessions,
+not just the latest rows shown on the dashboard. Times are UTC; energy, distance,
+duration, and battery levels use kWh, miles, minutes, and percent. Unentered
+prices stay blank, including home rates derived from configuration rather than
+stored on the session. The download follows the optional dashboard login.
+
 ## Contributing
 
 Hobby project, no SLA. Issues and pull requests welcome.
@@ -186,5 +192,4 @@ it forward: keep it open, keep it fun.
 ## License
 
 MIT. See [LICENSE](LICENSE).
-
 
