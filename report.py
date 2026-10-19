@@ -1621,8 +1621,8 @@ def _fmt_money(v: float, decimals: int = 0) -> str:
     return ("-" if v < 0 else "") + s
 
 
-def _gas_subtitle(rows: list[dict]) -> str:
-    """Two-line hero subtitle: N home sessions / N DC sessions."""
+def _gas_subtitle(rows: list[dict], unpriced_dc: int = 0) -> str:
+    """Included home/DC sessions and any unpriced DC exclusions."""
     n_home = sum(1 for r in rows if not r.get("is_dc"))
     n_dc = sum(1 for r in rows if r.get("is_dc"))
     parts = []
@@ -1630,6 +1630,9 @@ def _gas_subtitle(rows: list[dict]) -> str:
         parts.append("%d home session%s" % (n_home, "" if n_home == 1 else "s"))
     if n_dc:
         parts.append("%d DC session%s" % (n_dc, "" if n_dc == 1 else "s"))
+    if unpriced_dc:
+        parts.append("%d unpriced DC session%s excluded" %
+                     (unpriced_dc, "" if unpriced_dc == 1 else "s"))
     return "<br>".join(parts)
 
 
@@ -1788,6 +1791,7 @@ def generate() -> None:
         _gp = None
     _savings_rows = []
     _savings_total = 0.0
+    _unpriced_dc = 0
     _eff = lifetime_mpk if lifetime_mpk else 3.0
     for ch in all_charges:
         ctype = (ch.get("charge_type") or "").lower()
@@ -1801,6 +1805,7 @@ def generate() -> None:
         else:
             rate = ch.get("user_cost_per_kwh")
             if rate is None:
+                _unpriced_dc += 1
                 continue  # DC without an entered cost: excluded from total
         kwh = ch.get("kwh_added") or 0
         if kwh <= 0:
@@ -1845,10 +1850,18 @@ def generate() -> None:
         savings_table = (
             '<div class="card" style="margin-top:16px">'
             "<h3>Fuel savings by session</h3>"
-            '<p class="note">No charges recorded yet to compare against gas.</p>'
+            '<p class="note">'
+            + ("Enter a DC price in the charging log to compare those sessions."
+               if _unpriced_dc else
+               "No charges recorded yet to compare against gas.")
+            + "</p>"
             "</div>"
         )
         _savings_total = 0.0
+    savings_table += (
+        '<p class="note">Comparison assumes %g MPG; $%.2f/gal is used '
+        'when a gas price is unavailable.</p>' %
+        (GAS_COMPARISON_MPG, GAS_PRICE_FALLBACK))
 
     # Battery trend: end-of-day SoC series
     eod_series = []
@@ -2144,8 +2157,7 @@ def generate() -> None:
         "__LIFEMI__": f"{lifetime_mpk:.2f}" if lifetime_mpk else "-",
         "__GASSAVE__": (_fmt_money(int(round(_savings_total)))
                         if _savings_rows else "-"),
-        "__GASSAVESUB__": (_gas_subtitle(_savings_rows)
-                           if _savings_rows else ""),
+        "__GASSAVESUB__": _gas_subtitle(_savings_rows, _unpriced_dc),
         "__LIFESUB__": (f"{float(os.environ.get('WATTSON_DEMO_LIFETIME_MI', agg['m'])):.1f} mi tracked" if agg["m"] else ""),
         "__TRIPMONTH__": trip_month_html,
         "__TRIPS__": trips_html,
@@ -2180,4 +2192,3 @@ def _ldt_str_fmt(day: str, fmt: str) -> str:
 
 if __name__ == "__main__":
     generate()
-
