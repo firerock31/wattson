@@ -439,6 +439,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",Helvetica,Arial,
 .pill{background:var(--card2);border-radius:999px;padding:10px 18px;
   font-weight:700;font-size:15px}
 .updated{color:var(--faint);font-size:13px}
+#poll-age{display:block;text-align:right}
 
 .hero{padding:28px 4px 8px}
 .hero-top{display:flex;justify-content:space-between;gap:10px;align-items:center}
@@ -599,7 +600,8 @@ table.drain tr:last-child td,table.ctab tr:last-child td{border-bottom:0}
     <a href="#charging">Charging</a>
     <a href="#savings">Savings</a>
   </div>
-  <div class="nav-updated">__DEMOPILL__Updated __UPDATED__</div>
+  <div class="nav-updated">__DEMOPILL__<span>Updated __UPDATED__<span
+    id="poll-age" data-ts="__UPDATED_TS__"></span></span></div>
 </div></nav>
 <div class="wrap">
 
@@ -673,6 +675,27 @@ _BOLT_SVG = ('<svg class="bolt" viewBox="0 0 24 24" aria-hidden="true">'
             '</svg>')
 
 JS_TEMPLATE = """
+(function() {
+  var el = document.getElementById('poll-age');
+  if (!el || !el.dataset.ts) return;
+  var timestamp = Number(el.dataset.ts);
+  if (!Number.isFinite(timestamp)) return;
+  function updatePollAge() {
+    var seconds = Math.max(0, Math.floor(Date.now() / 1000 - timestamp));
+    var age = 'just now';
+    if (seconds >= 86400) {
+      var days = Math.floor(seconds / 86400);
+      age = days + (days === 1 ? ' day ago' : ' days ago');
+    } else if (seconds >= 3600) {
+      age = Math.floor(seconds / 3600) + ' hr ago';
+    } else if (seconds >= 60) {
+      age = Math.floor(seconds / 60) + ' min ago';
+    }
+    el.textContent = 'Last poll ' + age;
+  }
+  updatePollAge();
+  setInterval(updatePollAge, 60000);
+})();
 /* Evaluated at use time, not cached, so an OS-level change while the page is
    open takes effect on the next interaction. */
 function prefersReducedMotion() {
@@ -2131,6 +2154,7 @@ def generate() -> None:
         "__BRAND__": _esc(brand),
         "__DEMOPILL__": demopill,
         "__UPDATED__": _fmt_ts(latest.get("ts", now)),
+        "__UPDATED_TS__": latest.get("ts", ""),
         "__RANGE__": f"{rng:.0f} mi" if rng else "-",
         "__CARTAG__": car_tag,
         "__SOC__": f"{soc:.0f}%" if soc is not None else "-",
@@ -2180,4 +2204,3 @@ def _ldt_str_fmt(day: str, fmt: str) -> str:
 
 if __name__ == "__main__":
     generate()
-
