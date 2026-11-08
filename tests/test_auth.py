@@ -1,6 +1,15 @@
 import unittest
 
-from rivian.exceptions import RivianInvalidOTP, RivianUnauthenticated
+from rivian.exceptions import (
+    RivianApiException,
+    RivianApiRateLimitError,
+    RivianInvalidCredentials,
+    RivianInvalidOTP,
+    RivianTemporarilyLockedError,
+    RivianUnauthenticated,
+)
+
+from rivian import Rivian
 
 from auth import authenticate, build_tokens, get_current_user, validate_otp
 
@@ -32,8 +41,103 @@ class FakeClient:
 
 
 class AuthenticationTests(unittest.IsolatedAsyncioTestCase):
+    def assert_redacted(self, ctx, secret):
+        self.assertNotIn(secret, str(ctx.exception))
+        self.assertIsNone(ctx.exception.__cause__)
+        self.assertTrue(ctx.exception.__suppress_context__)
+
     async def test_authentication_error_does_not_expose_request_payload(self):
         secret = "synthetic-secret"
+        client = FakeClient(
+            auth_error=RivianApiException(
+                200,
+                {"errors": [{"message": "something else went wrong"}]},
+                {},
+                {"variables": {"password": secret}},
+            )
+        )
+
+        with self.assertRaisesRegex(
+            SystemExit, "Verify the email and password, then try again"
+        ) as ctx:
+            await authenticate(client, "driver@example.com", secret)
+
+        self.assert_redacted(ctx, secret)
+
+    async def test_invalid_credentials_reports_password_problem(self):
+        secret = "correct-horse-battery-staple"
+        client = FakeClient(
+            auth_error=RivianInvalidCredentials(
+                200,
+                {"errors": [{"message": "bad password"}]},
+                {},
+                {"variables": {"password": secret}},
+            )
+        )
+
+        with self.assertRaisesRegex(
+            SystemExit, "email or password was not accepted"
+        ) as ctx:
+            await authenticate(client, "driver@example.com", secret)
+
+        self.assert_redacted(ctx, secret)
+
+    async def test_temporarily_locked_reports_wait(self):
+        secret = "correct-horse-battery-staple"
+        client = FakeClient(
+            auth_error=RivianTemporarilyLockedError(
+                200,
+                {"errors": [{"message": "session manager error"}]},
+                {},
+                {"variables": {"password": secret}},
+            )
+        )
+
+        with self.assertRaisesRegex(
+            SystemExit, "temporary lock"
+        ) as ctx:
+            await authenticate(client, "driver@example.com", secret)
+
+        self.assert_redacted(ctx, secret)
+
+    async def test_rate_limit_reports_wait(self):
+        secret = "correct-horse-battery-staple"
+        client = FakeClient(
+            auth_error=RivianApiRateLimitError(
+                429,
+                {"errors": [{"message": "rate limit"}]},
+                {},
+                {"variables": {"password": secret}},
+            )
+        )
+
+        with self.assertRaisesRegex(
+            SystemExit, "rate limiting requests"
+        ) as ctx:
+            await authenticate(client, "driver@example.com", secret)
+
+        self.assert_redacted(ctx, secret)
+
+    async def test_otp_temporarily_locked_reports_wait(self):
+        code = "123456"
+        client = FakeClient(
+            otp_error=RivianTemporarilyLockedError(
+                200,
+                {"errors": [{"message": "session manager error"}]},
+                {},
+                {"variables": {"otp": code}},
+            )
+        )
+
+        with self.assertRaisesRegex(
+            SystemExit, "temporary lock"
+        ) as ctx:
+            await validate_otp(client, "driver@example.com", code)
+
+        self.assert_redacted(ctx, code)
+
+    async def test_unauthenticated_reports_password_problem(self):
+        secret = "correct-horse-battery-staple"
         client = FakeClient(
             auth_error=RivianUnauthenticated(
                 200,
@@ -43,10 +147,80 @@ class AuthenticationTests(unittest.IsolatedAsyncioTestCase):
             )
         )
 
-        with self.assertRaisesRegex(SystemExit, "Rivian rejected the login") as ctx:
+        with self.assertRaisesRegex(
+            SystemExit, "email or password was not accepted"
+        ) as ctx:
             await authenticate(client, "driver@example.com", secret)
 
-        self.assertNotIn(secret, str(ctx.exception))
+        self.assert_redacted(ctx, secret)
+
+    async def test_otp_rate_limit_reports_wait(self):
+        code = "123456"
+        client = FakeClient(
+            otp_error=RivianApiRateLimitError(
+                429,
+                {"errors": [{"message": "rate limit"}]},
+                {},
+                {"variables": {"otp": code}},
+            )
+        )
+
+        with self.assertRaisesRegex(
+            SystemExit, "rate limiting requests"
+        ) as ctx:
+            await validate_otp(client, "driver@example.com", code)
+
+        self.assert_redacted(ctx, code)
+
+    async def test_otp_generic_error_does_not_expose_code(self):
+        code = "123456"
+        client = FakeClient(
+            otp_error=RivianApiException(
+                200,
+                {"errors": [{"message": "something else went wrong"}]},
+                {},
+                {"variables": {"otp": code}},
+            )
+        )
+
+        with self.assertRaisesRegex(
+            SystemExit, "Rivian could not validate the OTP"
+        ) as ctx:
+            await validate_otp(client, "driver@example.com", code)
+
+        self.assert_redacted(ctx, code)
+
+    async def test_otp_unauthenticated_reports_expired_session(self):
+        code = "123456"
+        client = FakeClient(
+            otp_error=RivianUnauthenticated(
+                200,
+                {"errors": [{"message": "unauthenticated"}]},
+                {},
+                {"variables": {"otp": code}},
+            )
+        )
+
+        with self.assertRaisesRegex(
+            SystemExit, "sign-in session"
+        ) as ctx:
+            await validate_otp(client, "driver@example.com", code)
+
+        self.assert_redacted(ctx, code)
+
+    async def test_successful_authentication_returns_none(self):
+        client = FakeClient()
+
+        result = await authenticate(client, "driver@example.com", "pw")
+
+        self.assertIsNone(result)
+
+    async def test_successful_otp_validation_returns_none(self):
+        client = FakeClient()
+
+        result = await validate_otp(client, "driver@example.com", "123456")
+
+        self.assertIsNone(result)
 
     async def test_invalid_otp_does_not_expose_code(self):
         code = "123456"
@@ -62,13 +236,60 @@ class AuthenticationTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaisesRegex(SystemExit, "Rivian rejected the OTP") as ctx:
             await validate_otp(client, "driver@example.com", code)
 
-        self.assertNotIn(code, str(ctx.exception))
+        self.assert_redacted(ctx, code)
 
     async def test_current_user_is_read_from_graphql_response(self):
         current_user = {"vehicles": [{"id": "vehicle-id"}]}
         client = FakeClient(payload={"data": {"currentUser": current_user}})
 
         self.assertEqual(await get_current_user(client), current_user)
+
+
+class FakeRivianResponse:
+    def __init__(self, payload, status=200):
+        self._payload = payload
+        self.status = status
+
+    async def json(self):
+        return self._payload
+
+
+class FakeRivianSession:
+    """Minimal aiohttp stand-in: every request returns the payload."""
+
+    def __init__(self, payload):
+        self._payload = payload
+
+    async def request(self, method, url, json=None, headers=None):
+        return FakeRivianResponse(self._payload)
+
+
+class LibraryMappingTests(unittest.IsolatedAsyncioTestCase):
+    async def test_login_unauthenticated_response_reports_password_problem(self):
+        payload = {
+            "errors": [
+                {
+                    "message": "unauthenticated",
+                    "extensions": {
+                        "code": "UNAUTHENTICATED",
+                        "reason": "UNAUTHENTICATED",
+                    },
+                }
+            ]
+        }
+        client = Rivian(
+            session=FakeRivianSession(payload),
+            csrf_token="csrf",
+            app_session_token="app-session",
+        )
+
+        with self.assertRaisesRegex(
+            SystemExit, "email or password was not accepted"
+        ) as ctx:
+            await authenticate(client, "driver@example.com", "bad-password")
+
+        self.assertNotIn("bad-password", str(ctx.exception))
+        self.assertTrue(ctx.exception.__suppress_context__)
 
 
 class TokenPayloadTests(unittest.TestCase):

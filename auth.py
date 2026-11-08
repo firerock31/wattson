@@ -12,16 +12,44 @@ import getpass
 
 import aiohttp
 from rivian import Rivian
-from rivian.exceptions import RivianApiException, RivianInvalidOTP
+from rivian.exceptions import (
+    RivianApiException,
+    RivianApiRateLimitError,
+    RivianInvalidCredentials,
+    RivianInvalidOTP,
+    RivianTemporarilyLockedError,
+    RivianUnauthenticated,
+)
 
 from config import FLAG_REAUTH, TOKENS_PATH
 from crypto import seal, write_private
+
+
+LOCKED_MESSAGE = (
+    "Rivian reported a temporary lock on this account. Stop retrying "
+    "for now and wait before trying again; repeated attempts may "
+    "keep the lock in place."
+)
+
+RATE_LIMIT_MESSAGE = (
+    "Rivian is rate limiting requests right now. "
+    "Wait a while before trying again."
+)
 
 
 async def authenticate(client, email: str, password: str) -> None:
     """Authenticate without exposing request details from client exceptions."""
     try:
         await client.authenticate(email, password)
+    except (RivianInvalidCredentials, RivianUnauthenticated):
+        raise SystemExit(
+            "Rivian rejected the login. The email or password was not "
+            "accepted; verify both and try again."
+        ) from None
+    except RivianTemporarilyLockedError:
+        raise SystemExit(LOCKED_MESSAGE) from None
+    except RivianApiRateLimitError:
+        raise SystemExit(RATE_LIMIT_MESSAGE) from None
     except RivianApiException:
         raise SystemExit(
             "Rivian rejected the login. Verify the email and password, "
@@ -37,6 +65,16 @@ async def validate_otp(client, email: str, code: str) -> None:
         raise SystemExit(
             "Rivian rejected the OTP. Request a new code and try again."
         ) from None
+    except RivianUnauthenticated:
+        raise SystemExit(
+            "Rivian could not validate the OTP; the sign-in session "
+            "may have expired. Run the linker again to request a "
+            "fresh code."
+        ) from None
+    except RivianTemporarilyLockedError:
+        raise SystemExit(LOCKED_MESSAGE) from None
+    except RivianApiRateLimitError:
+        raise SystemExit(RATE_LIMIT_MESSAGE) from None
     except RivianApiException:
         raise SystemExit(
             "Rivian could not validate the OTP. Try again later."
