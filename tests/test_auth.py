@@ -1,6 +1,12 @@
 import unittest
 
-from rivian.exceptions import RivianInvalidOTP, RivianUnauthenticated
+from rivian.exceptions import (
+    RivianApiRateLimitError,
+    RivianInvalidCredentials,
+    RivianInvalidOTP,
+    RivianTemporarilyLockedError,
+    RivianUnauthenticated,
+)
 
 from auth import authenticate, build_tokens, get_current_user, validate_otp
 
@@ -47,6 +53,78 @@ class AuthenticationTests(unittest.IsolatedAsyncioTestCase):
             await authenticate(client, "driver@example.com", secret)
 
         self.assertNotIn(secret, str(ctx.exception))
+
+    async def test_invalid_credentials_reports_password_problem(self):
+        secret = "correct-horse-battery-staple"
+        client = FakeClient(
+            auth_error=RivianInvalidCredentials(
+                200,
+                {"errors": [{"message": "bad password"}]},
+                {},
+                {"variables": {"password": secret}},
+            )
+        )
+
+        with self.assertRaisesRegex(
+            SystemExit, "email or password was not accepted"
+        ) as ctx:
+            await authenticate(client, "driver@example.com", secret)
+
+        self.assertNotIn(secret, str(ctx.exception))
+
+    async def test_temporarily_locked_reports_wait(self):
+        secret = "correct-horse-battery-staple"
+        client = FakeClient(
+            auth_error=RivianTemporarilyLockedError(
+                200,
+                {"errors": [{"message": "session manager error"}]},
+                {},
+                {"variables": {"password": secret}},
+            )
+        )
+
+        with self.assertRaisesRegex(
+            SystemExit, "temporarily locked"
+        ) as ctx:
+            await authenticate(client, "driver@example.com", secret)
+
+        self.assertNotIn(secret, str(ctx.exception))
+
+    async def test_rate_limit_reports_wait(self):
+        secret = "correct-horse-battery-staple"
+        client = FakeClient(
+            auth_error=RivianApiRateLimitError(
+                429,
+                {"errors": [{"message": "rate limit"}]},
+                {},
+                {"variables": {"password": secret}},
+            )
+        )
+
+        with self.assertRaisesRegex(
+            SystemExit, "rate limiting login attempts"
+        ) as ctx:
+            await authenticate(client, "driver@example.com", secret)
+
+        self.assertNotIn(secret, str(ctx.exception))
+
+    async def test_otp_temporarily_locked_reports_wait(self):
+        code = "123456"
+        client = FakeClient(
+            otp_error=RivianTemporarilyLockedError(
+                200,
+                {"errors": [{"message": "session manager error"}]},
+                {},
+                {"variables": {"otp": code}},
+            )
+        )
+
+        with self.assertRaisesRegex(
+            SystemExit, "temporarily locked"
+        ) as ctx:
+            await validate_otp(client, "driver@example.com", code)
+
+        self.assertNotIn(code, str(ctx.exception))
 
     async def test_invalid_otp_does_not_expose_code(self):
         code = "123456"
