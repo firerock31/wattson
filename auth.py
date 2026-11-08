@@ -18,6 +18,7 @@ from rivian.exceptions import (
     RivianInvalidCredentials,
     RivianInvalidOTP,
     RivianTemporarilyLockedError,
+    RivianUnauthenticated,
 )
 
 from config import FLAG_REAUTH, TOKENS_PATH
@@ -31,7 +32,7 @@ LOCKED_MESSAGE = (
 )
 
 RATE_LIMIT_MESSAGE = (
-    "Rivian is rate limiting login attempts right now. "
+    "Rivian is rate limiting requests right now. "
     "Wait a while before trying again."
 )
 
@@ -40,7 +41,7 @@ async def authenticate(client, email: str, password: str) -> None:
     """Authenticate without exposing request details from client exceptions."""
     try:
         await client.authenticate(email, password)
-    except RivianInvalidCredentials:
+    except (RivianInvalidCredentials, RivianUnauthenticated):
         raise SystemExit(
             "Rivian rejected the login. The email or password was not "
             "accepted; verify both and try again."
