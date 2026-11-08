@@ -9,6 +9,8 @@ from rivian.exceptions import (
     RivianUnauthenticated,
 )
 
+from rivian import Rivian
+
 from auth import authenticate, build_tokens, get_current_user, validate_otp
 
 
@@ -55,7 +57,9 @@ class AuthenticationTests(unittest.IsolatedAsyncioTestCase):
             )
         )
 
-        with self.assertRaisesRegex(SystemExit, "Rivian rejected the login") as ctx:
+        with self.assertRaisesRegex(
+            SystemExit, "Verify the email and password, then try again"
+        ) as ctx:
             await authenticate(client, "driver@example.com", secret)
 
         self.assert_redacted(ctx, secret)
@@ -90,7 +94,7 @@ class AuthenticationTests(unittest.IsolatedAsyncioTestCase):
         )
 
         with self.assertRaisesRegex(
-            SystemExit, "temporarily locked"
+            SystemExit, "temporary lock"
         ) as ctx:
             await authenticate(client, "driver@example.com", secret)
 
@@ -126,7 +130,7 @@ class AuthenticationTests(unittest.IsolatedAsyncioTestCase):
         )
 
         with self.assertRaisesRegex(
-            SystemExit, "temporarily locked"
+            SystemExit, "temporary lock"
         ) as ctx:
             await validate_otp(client, "driver@example.com", code)
 
@@ -186,6 +190,38 @@ class AuthenticationTests(unittest.IsolatedAsyncioTestCase):
 
         self.assert_redacted(ctx, code)
 
+    async def test_otp_unauthenticated_reports_expired_session(self):
+        code = "123456"
+        client = FakeClient(
+            otp_error=RivianUnauthenticated(
+                200,
+                {"errors": [{"message": "unauthenticated"}]},
+                {},
+                {"variables": {"otp": code}},
+            )
+        )
+
+        with self.assertRaisesRegex(
+            SystemExit, "sign-in session"
+        ) as ctx:
+            await validate_otp(client, "driver@example.com", code)
+
+        self.assert_redacted(ctx, code)
+
+    async def test_successful_authentication_returns_none(self):
+        client = FakeClient()
+
+        result = await authenticate(client, "driver@example.com", "pw")
+
+        self.assertIsNone(result)
+
+    async def test_successful_otp_validation_returns_none(self):
+        client = FakeClient()
+
+        result = await validate_otp(client, "driver@example.com", "123456")
+
+        self.assertIsNone(result)
+
     async def test_invalid_otp_does_not_expose_code(self):
         code = "123456"
         client = FakeClient(
@@ -207,6 +243,53 @@ class AuthenticationTests(unittest.IsolatedAsyncioTestCase):
         client = FakeClient(payload={"data": {"currentUser": current_user}})
 
         self.assertEqual(await get_current_user(client), current_user)
+
+
+class FakeRivianResponse:
+    def __init__(self, payload, status=200):
+        self._payload = payload
+        self.status = status
+
+    async def json(self):
+        return self._payload
+
+
+class FakeRivianSession:
+    """Minimal aiohttp stand-in: every request returns the payload."""
+
+    def __init__(self, payload):
+        self._payload = payload
+
+    async def request(self, method, url, json=None, headers=None):
+        return FakeRivianResponse(self._payload)
+
+
+class LibraryMappingTests(unittest.IsolatedAsyncioTestCase):
+    async def test_login_unauthenticated_response_reports_password_problem(self):
+        payload = {
+            "errors": [
+                {
+                    "message": "unauthenticated",
+                    "extensions": {
+                        "code": "UNAUTHENTICATED",
+                        "reason": "UNAUTHENTICATED",
+                    },
+                }
+            ]
+        }
+        client = Rivian(
+            session=FakeRivianSession(payload),
+            csrf_token="csrf",
+            app_session_token="app-session",
+        )
+
+        with self.assertRaisesRegex(
+            SystemExit, "email or password was not accepted"
+        ) as ctx:
+            await authenticate(client, "driver@example.com", "bad-password")
+
+        self.assertNotIn("bad-password", str(ctx.exception))
+        self.assertTrue(ctx.exception.__suppress_context__)
 
 
 class TokenPayloadTests(unittest.TestCase):

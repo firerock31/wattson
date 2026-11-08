@@ -26,9 +26,9 @@ from crypto import seal, write_private
 
 
 LOCKED_MESSAGE = (
-    "Rivian has temporarily locked this account after repeated login "
-    "attempts. Wait a few hours before trying again; more attempts "
-    "can extend the lock."
+    "Rivian reported a temporary lock on this account. Stop retrying "
+    "for now and wait before trying again; repeated attempts may "
+    "keep the lock in place."
 )
 
 RATE_LIMIT_MESSAGE = (
@@ -64,6 +64,12 @@ async def validate_otp(client, email: str, code: str) -> None:
     except RivianInvalidOTP:
         raise SystemExit(
             "Rivian rejected the OTP. Request a new code and try again."
+        ) from None
+    except RivianUnauthenticated:
+        raise SystemExit(
+            "Rivian could not validate the OTP; the sign-in session "
+            "may have expired. Run the linker again to request a "
+            "fresh code."
         ) from None
     except RivianTemporarilyLockedError:
         raise SystemExit(LOCKED_MESSAGE) from None
