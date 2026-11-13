@@ -4,10 +4,14 @@ negative drop, missing SoC cannot crash the render, the median label
 lives in the axis gutter, and stub labels survive thin mode."""
 import re
 import tempfile
+import time
 import unittest
+from datetime import datetime
+from zoneinfo import ZoneInfo
 from pathlib import Path
 from unittest import mock
 
+import config
 import db
 import report
 
@@ -151,6 +155,135 @@ class GenerateDrainTests(unittest.TestCase):
         page = self.render()
         self.assertIn("0.00 kWh &bull; -", page)
         self.assertIn("1.0<small> %</small>", page)
+
+    def test_header_shows_miles_per_day(self):
+        now = int(time.time())
+        self.drain(now - 2 * 86400, 10, 60.0, 59.67, kwh=0.33,
+                   watts=33.0, pct=0.4, approx=0)
+        self.drain(now - 1 * 86400, 10, 59.0, 58.67, kwh=0.33,
+                   watts=33.0, pct=0.4, approx=0)
+        page = self.render()
+        self.assertIn("(~2.4 mi/day)", page)
+
+    def test_header_uses_lifetime_efficiency(self):
+        now = int(time.time())
+        self.drain(now - 2 * 86400, 10, 60.0, 59.67, kwh=0.33,
+                   watts=33.0, pct=0.4, approx=0)
+        self.drain(now - 1 * 86400, 10, 59.0, 58.67, kwh=0.33,
+                   watts=33.0, pct=0.4, approx=0)
+        with db.connect() as con:
+            con.execute(
+                "INSERT INTO trips (start_ts, end_ts, miles, kwh_used,"
+                " wh_per_mi, avg_mph, start_label, end_label)"
+                " VALUES (?, ?, 200.0, 100.0, 500.0, 30.0, 'Home', 'Office')",
+                (now - 2 * 86400, now - 2 * 86400 + 3600))
+        page = self.render()
+        self.assertIn("(~1.6 mi/day)", page)
+
+def _axis_labels(svg: str) -> list[str]:
+    return re.findall(r'class="axis">([^<]+)</text>', svg)
+
+
+def _strip_period(t1, t2, **over):
+    base = period(t1=t1, t2=t2, hours=(t2 - t1) / 3600.0)
+    base.update(over)
+    return base
+
+
+def _ts(y, mo, d, h, mi=0):
+    return int(datetime(y, mo, d, h, mi,
+                        tzinfo=ZoneInfo("America/Los_Angeles")).timestamp())
+
+
+class TimelineStripTests(unittest.TestCase):
+    def test_dst_fallback_day_has_one_label_per_date(self):
+        # 2026-11-01 is the 25-hour DST fall-back day in America/Los_Angeles.
+        # The axis must end at Nov 02 00:00, not Nov 01 23:00, or the last
+        # date label duplicates and the segment overflows the viewBox.
+        svg = report._timeline_strip(
+            [_strip_period(_ts(2026, 11, 1, 1, 30), _ts(2026, 11, 1, 23, 30),
+                           watts=52.0)], set())
+        self.assertEqual(_axis_labels(svg), ["Nov 01", "Nov 02"])
+        for x, w in re.findall(r'<rect x="([\d.]+)" y="52" width="([\d.]+)"', svg):
+            self.assertLessEqual(float(x) + float(w), 560.0)
+
+    def test_midnight_crossing_segment_spans_both_dates(self):
+        svg = report._timeline_strip(
+            [_strip_period(_ts(2026, 11, 5, 22), _ts(2026, 11, 6, 6),
+                           watts=40.0)], set())
+        labels = _axis_labels(svg)
+        self.assertIn("Nov 05", labels)
+        self.assertIn("Nov 06", labels)
+
+    def test_substep_period_prints_watt_bound(self):
+        svg = report._timeline_strip(
+            [_strip_period(_ts(2026, 10, 5, 1), _ts(2026, 10, 5, 23),
+                           substep=True)], set())
+        self.assertIn("&lt;4 W", svg)
+
+    def test_thirty_day_axis_keeps_every_third_label(self):
+        periods = [_strip_period(_ts(2026, 10, d, 1), _ts(2026, 10, d, 21),
+                                 id=f"p{d}", watts=40.0)
+                   for d in range(1, 31)]
+        self.assertEqual(
+            _axis_labels(report._timeline_strip(periods, set())),
+            ["Oct 01", "Oct 04", "Oct 07", "Oct 10", "Oct 13", "Oct 16",
+             "Oct 19", "Oct 22", "Oct 25", "Oct 28", "Oct 31"])
+
+    def test_seven_day_axis_shows_every_day(self):
+        periods = [_strip_period(_ts(2026, 11, d, 1), _ts(2026, 11, d, 20),
+                                 id=f"q{d}", watts=40.0)
+                   for d in range(4, 14)]
+        self.assertEqual(
+            _axis_labels(report._timeline_strip(periods, set())),
+            ["Nov 04", "Nov 05", "Nov 06", "Nov 07", "Nov 08", "Nov 09",
+             "Nov 10", "Nov 11", "Nov 12", "Nov 13", "Nov 14"])
+
+
+def _charge(**over):
+    base = {"id": 1, "start_ts": 1700000000, "end_ts": 1700003600,
+            "minutes": 60.0, "kwh_added": 20.0, "miles_added": 60.0,
+            "charge_type": "AC", "label": None, "lat": None, "lon": None,
+            "soc_start": 40.0, "soc_end": 65.0, "avg_kw": 11.0}
+    base.update(over)
+    return base
+
+
+class ChargeCollapseTests(unittest.TestCase):
+    def test_history_rows_start_collapsed(self):
+        with mock.patch("gasprice.get_gas_price", return_value=4.5):
+            html = report._charges_html(
+                [_charge(id=1), _charge(id=2, start_ts=1700100000,
+                                        end_ts=1700103600)])
+        self.assertNotIn("<details open", html)
+        self.assertEqual(html.count("<details"), 2)
+
+    def test_row_open_knob_still_works(self):
+        with mock.patch("gasprice.get_gas_price", return_value=4.5):
+            open_html = report._charge_row_html(_charge(), 25.0, open_=True)
+            shut_html = report._charge_row_html(_charge(), 25.0, open_=False)
+        self.assertIn('<details class="chargerow sacc" open>', open_html)
+        self.assertIn('<details class="chargerow sacc">', shut_html)
+        self.assertNotIn("<details open", shut_html)
+
+
+class DriveModeTests(unittest.TestCase):
+    def test_drive_mode_requested_in_props(self):
+        self.assertIn("driveMode", config.PROPS)
+
+    def test_trip_row_shows_drive_mode(self):
+        trip = {"start_ts": 1700000000, "end_ts": 1700003600,
+                "miles": 10.0, "kwh_used": 3.0, "wh_per_mi": 300.0,
+                "avg_mph": 30.0, "start_label": "Home",
+                "end_label": "Office", "drive_mode": "All-Purpose"}
+        days = report._activity_day_data([trip], [], [])
+        self.assertEqual(len(days), 1)
+        self.assertIn('title="drive mode"><b>All-Purpose</b>', days[0]["body"])
+        plain = dict(trip)
+        del plain["drive_mode"]
+        days = report._activity_day_data([plain], [], [])
+        self.assertNotIn('title="drive mode"', days[0]["body"])
+
 
 
 if __name__ == "__main__":

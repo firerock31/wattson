@@ -95,6 +95,7 @@ h2.sec{font-size:32px;font-weight:750;letter-spacing:-0.8px;margin:38px 0 14px}
 .donut-cap{text-align:center;color:var(--dim);font-size:14px;margin-top:6px}
 .bars{width:100%;display:block}
 .heat{width:100%;display:block}
+.timeline{width:100%;display:block}
 .bar-label{fill:var(--faint);font-size:12px}
 .bar-val{fill:var(--dim);font-size:12px;font-weight:600}
 .bar-sub{fill:var(--faint);font-size:11px}

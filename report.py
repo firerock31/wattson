@@ -349,6 +349,162 @@ def _heat_strip(nights: list[dict], bad: set) -> str:
             + "".join(parts) + "</svg>")
 
 
+def _timeline_strip(periods: list[dict], bad: set) -> str:
+    """One-row timeline for short ranges: real time on the x-axis.
+
+    Each idle period is a segment on a single track, positioned by its
+    real start/end (t1/t2), length proportional to duration, color by
+    watts: amber fill, red when abnormal (>1.6x median), hollow outline
+    when the drop fits inside one gauge step (present but unmeasurable),
+    dark gray when plugged in or no data. Gaps between segments are
+    driving time, so a multi-day park reads as the long stretch it is
+    instead of one bar as wide as a 6-hour park.
+
+    Value labels are all in watts: a substep period prints an upper
+    bound ("<4 W" = one gauge step, 88 Wh, over its hours) instead of
+    switching to percent, so every label is comparable. Labels sit on
+    two alternating rows above the track and are skipped when they
+    would collide with the previous label in the same row, so dense
+    ranges (1M) stay readable. Below the track, each segment gets a
+    short hours label ("38h"); the dates live on a proper day axis at
+    the bottom spanning whole calendar days, one tick per midnight with
+    a date label, thinned on long ranges by pixel width. Every segment
+    carries a <title> with the full numbers.
+    """
+    if not periods:
+        return ""
+    w, h = 560, 144
+    x0, x1 = 8, w - 8
+    t0 = min(o["t1"] for o in periods)
+    t_end = max(o["t2"] for o in periods)
+    # The axis spans whole calendar days, midnight to midnight, so its
+    # ticks land on evenly spaced day boundaries and every day in the
+    # range gets a marker. Segments keep their real start/end inside
+    # that span.
+    day0 = _ldt(t0).date()
+    day1 = _ldt(t_end).date()
+    axis_start = datetime(day0.year, day0.month, day0.day,
+                          tzinfo=LOCAL_TZ).timestamp()
+    day_end = day1 + timedelta(days=1)
+    axis_end = datetime(day_end.year, day_end.month, day_end.day,
+                        tzinfo=LOCAL_TZ).timestamp()
+    span = max(axis_end - axis_start, 3600)
+
+    def X(t: int) -> float:
+        return x0 + (t - axis_start) / span * (x1 - x0)
+
+    # Day boundaries inside the span: gridlines across the track and
+    # ticks on the day axis below, at the same x positions.
+    midnights = []
+    d = day0 + timedelta(days=1)
+    while d <= day1:
+        midnights.append(datetime(d.year, d.month, d.day,
+                                  tzinfo=LOCAL_TZ).timestamp())
+        d += timedelta(days=1)
+
+    track_y, track_h = 52, 26
+    parts = [
+        f'<rect x="{x0}" y="{track_y}" width="{x1 - x0}" height="{track_h}"'
+        f' rx="7" fill="#1e1e20"/>'
+    ]
+    for mid in midnights:
+        gx = X(mid)
+        parts.append(
+            f'<line x1="{gx:.1f}" y1="{track_y}" x2="{gx:.1f}"'
+            f' y2="{track_y + track_h}" class="grid"/>')
+    # Value labels on two alternating rows; skip on collision.
+    # Hours sublabels on one row below the track; same skip rule.
+    row_y = [44, 26]
+    row_end = [-1e9, -1e9]
+    sub_end = -1e9
+    for o in periods:
+        sx = X(o["t1"])
+        seg_w = max(4.0, X(o["t2"]) - sx)
+        ex = sx + seg_w
+        cx = (sx + ex) / 2
+        if o["plugged"]:
+            fill = "#2b2b2d"
+            rect = (f'<rect x="{sx:.1f}" y="{track_y}" width="{seg_w:.1f}"'
+                    f' height="{track_h}" rx="6" fill="{fill}">')
+            vlab = "plugged in"
+            tip = f'{o["label"]}: plugged in, not measured'
+        elif o["no_data"]:
+            rect = (f'<rect x="{sx:.1f}" y="{track_y}" width="{seg_w:.1f}"'
+                    f' height="{track_h}" rx="6" fill="none"'
+                    f' stroke="#555558" stroke-width="1.5">')
+            vlab = "no data"
+            tip = f'{o["label"]}: no data (car was asleep)'
+        elif o.get("substep"):
+            rect = (f'<rect x="{sx:.1f}" y="{track_y}" width="{seg_w:.1f}"'
+                    f' height="{track_h}" rx="6" fill="none"'
+                    f' stroke="{AMBER}" stroke-width="1.5">')
+            # One gauge step is 0.1% of the usable pack: 87.9 Wh, which
+            # is numerically USABLE_KWH in watts over one hour.
+            bound = USABLE_KWH / max(o["hours"], 0.1)
+            vlab = f"<{bound:.0f} W"
+            tip = (f'{o["label"]}: below one gauge step '
+                   f'over {o["hours"]:.1f} h')
+        else:
+            fill = RED if o["id"] in bad else AMBER
+            rect = (f'<rect x="{sx:.1f}" y="{track_y}" width="{seg_w:.1f}"'
+                    f' height="{track_h}" rx="6" fill="{fill}">')
+            vlab = f'{o["watts"]:.0f} W'
+            tip = (f'{o["label"]}: {o["watts"]:.0f} W, '
+                   f'{o["kwh"]:.2f} kWh over {o["hours"]:.1f} h')
+        if o["id"] in bad:
+            tip += " (abnormal)"
+        parts.append(rect + f"<title>{_esc(tip)}</title></rect>")
+        lab_w = len(vlab) * 6.8
+        # Clamp the text center so edge labels stay inside the viewBox.
+        tx = min(max(cx, lab_w / 2), w - lab_w / 2)
+        for r in (0, 1):
+            if tx - lab_w / 2 > row_end[r] + 4:
+                parts.append(
+                    f'<text x="{tx:.1f}" y="{row_y[r]}" text-anchor="middle"'
+                    f' class="bar-val">{_esc(vlab)}</text>')
+                row_end[r] = tx + lab_w / 2
+                break
+        slab = f'{o["hours"]:.0f}h'
+        slab_w = len(slab) * 6.5
+        sx_txt = min(max(cx, slab_w / 2), w - slab_w / 2)
+        if sx_txt - slab_w / 2 > sub_end + 4:
+            parts.append(
+                f'<text x="{sx_txt:.1f}" y="94" text-anchor="middle"'
+                f' class="bar-sub">{_esc(slab)}</text>')
+            sub_end = sx_txt + slab_w / 2
+    # Day axis: baseline, one tick per midnight, date labels thinned
+    # by pixel width (not by count) so a 7-day view shows every day.
+    # Any label that would collide with the previous one is skipped.
+    axis_y = 112
+    parts.append(
+        f'<line x1="{x0}" y1="{axis_y}" x2="{x1}" y2="{axis_y}"'
+        f' stroke="#8e8e93" stroke-width="1.5"/>')
+    axis_labels = [(axis_start, _ldt(axis_start).strftime("%b %d"))]
+    axis_labels += [(m, _ldt(m).strftime("%b %d")) for m in midnights]
+    axis_labels.append((axis_end, _ldt(axis_end).strftime("%b %d")))
+    n_lab = len(axis_labels)
+    lab_w_est = 6 * 6.5
+    spacing = (x1 - x0) / max(n_lab - 1, 1)
+    step = max(1, math.ceil((lab_w_est + 8) / spacing))
+    ax_end = -1e9
+    for i, (t, txt) in enumerate(axis_labels):
+        if i % step and i != n_lab - 1:
+            continue
+        lx = X(t)
+        lab_w = len(txt) * 6.5
+        tx = min(max(lx, lab_w / 2), w - lab_w / 2)
+        if tx - lab_w / 2 < ax_end + 2:
+            continue
+        parts.append(
+            f'<line x1="{lx:.1f}" y1="{axis_y - 4}" x2="{lx:.1f}"'
+            f' y2="{axis_y + 4}" stroke="#8e8e93" stroke-width="1.5"/>')
+        parts.append(
+            f'<text x="{tx:.1f}" y="{axis_y + 20}" text-anchor="middle"'
+            f' class="axis">{_esc(txt)}</text>')
+        ax_end = tx + lab_w / 2
+    return (f'<svg viewBox="0 0 {w} {h}" class="timeline" role="img">'
+            + "".join(parts) + "</svg>")
+
 def _battery_svg(series: list[tuple[str, float]]) -> str:
     """End-of-day SoC line chart. series: (day_label, soc)."""
     w, h = 600, 200
@@ -1328,8 +1484,10 @@ def _charges_html(charges: list[dict], live: dict | None = None,
         parts.append(_live_charge_html(live, live_is_home))
     if hist:
         scale = max(ch["kwh_added"] for ch in hist) * 1.15 or 1.0
-        rows = "".join(_charge_row_html(c, scale, open_=(i == 0), eff=eff)
-                       for i, c in enumerate(hist))
+        # Every row starts collapsed, including the latest: the open
+        # first row made the dashboard too long.
+        rows = "".join(_charge_row_html(c, scale, open_=False, eff=eff)
+                       for c in hist)
         export = ("" if os.environ.get("WATTSON_DEMO") else
                   '<a href="/api/charges.csv" '
                   'class="dim14">Export CSV</a>')
@@ -1930,14 +2088,15 @@ def generate() -> None:
             '<div class="v amber">-<small> %</small></div>'
             '<div class="s">no data yet</div></a>')
 
-    # Phantom drain trend: period-by-period bars, so "typical" has a visual
-    # anchor. A period over 1.6x the median watts (needs 3+ measured
-    # periods) flags red. Gets the same 1M / 6M / 1Y / All range control
-    # as Pack health: each range recomputes its own average and abnormal
-    # flags. 7N and 1M draw bars with the real watts axis; 6M, 1Y and All
-    # draw a heat strip (one cell per period, weeks as columns, color
-    # intensity = watts draw, abnormal periods stay red) instead of an
-    # unreadable year of thin bars. Averaging into weekly bars was
+    # Phantom drain trend: period-by-period timeline, so "typical" has a
+    # visual anchor. A period over 1.6x the median watts (needs 3+
+    # measured periods) flags red. Gets the same 1M / 6M / 1Y / All range
+    # control as Pack health: each range recomputes its own average and
+    # abnormal flags. 7N and 1M draw a timeline strip (one row, real time
+    # on the x-axis, segment length = duration, color = watts); 6M, 1Y
+    # and All draw a heat strip (one cell per period, weeks as columns,
+    # color intensity = watts draw, abnormal periods stay red) instead of
+    # an unreadable year of thin bars. Averaging into weekly bars was
     # rejected: it could hide a single abnormal period.
     def _trend_range(periods: list[dict], style: str = "bars") -> str:
         measured = [o for o in periods if not o["no_data"]]
@@ -1955,7 +2114,12 @@ def generate() -> None:
         n_nodata = len(periods) - len(measured) - n_plugged
         tot_drop = sum(o["soc_drop"] or 0 for o in measured)
         avg_pct = tot_drop / (tot_hrs / 24.0) if tot_hrs else 0
+        # Miles per parked day at the car's lifetime efficiency, so the
+        # watts average reads as range lost, not just power. Same basis
+        # as the %/day figure (parked time only, not calendar days).
+        mi_day = avg_w * 24 / 1000 * (lifetime_mpk or 3.0)
         avg = (f"Average <b class='amber'>{avg_w:.0f} W</b> "
+               f"(~{mi_day:.1f} mi/day) "
                f"({avg_pct:.1f}%/day, {tot_kwh:.2f} kWh total) "
                f"across {len(measured)} idle period"
                f"{'s' if len(measured) != 1 else ''}")
@@ -1967,24 +2131,10 @@ def generate() -> None:
         if len(measured) < 3:
             avg += (" Early data: the average firms up "
                     "after a few idle periods.")
-        cols = [RED if o["id"] in bad else AMBER for o in periods]
-        thin = len(periods) > 16
-        labels = [("plugged in" if o["plugged"] else
-                   "no data" if o["no_data"] else
-                   "&le;0.1%" if o.get("substep") else f"{o['watts']:.0f} W")
-                  for o in periods]
-        sublabels = ["" if o["no_data"] else f"{o['hours']:.0f}h"
-                     for o in periods]
         if style == "strip":
             chart = _heat_strip(periods, bad)
         else:
-            bars = _bars(
-                [(o["label"], o["watts"], c) for o, c in zip(periods, cols)],
-                labels=labels, sublabels=sublabels, thin=thin,
-                y_unit="W", ref_value=med if med > 0 else None,
-                stubs={i for i, o in enumerate(periods)
-                       if o.get("substep")})
-            chart = bars
+            chart = _timeline_strip(periods, bad)
         table = _idle_table(periods, bad)
         details = (
             '<details class="sacc"><summary class="dim lbl14">'
@@ -2019,14 +2169,14 @@ def generate() -> None:
                       "Drive the car and park it to fill this in.")
     trend_toggle = ""
     if trend_ranges:
-        trend_note = ("Each bar is one park between drives, measured from "
-                      "the car's last report after parking to its first "
-                      "report on waking. The car only reports when it "
-                      "wakes or checks in, so a long park may rest on just "
-                      "a few readings, and a short park can read zero: "
-                      "the battery gauge moves in 0.1% steps, about 88 Wh "
-                      "each. Plugged-in periods are not measured: the "
-                      "car tops itself off.")
+        trend_note = ("Each segment is one park between drives, measured "
+                      "from the car's last report after parking to its "
+                      "first report on waking. The car only reports when "
+                      "it wakes or checks in, so a long park may rest on "
+                      "just a few readings, and a short park can read "
+                      "below one gauge step: the battery gauge moves in "
+                      "0.1% steps, about 88 Wh each. Plugged-in periods "
+                      "are not measured: the car tops itself off.")
     else:
         trend_note = ""
     if open_park:
