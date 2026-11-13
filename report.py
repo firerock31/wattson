@@ -654,10 +654,11 @@ def _trip_map_parts(trips: list[dict]):
     lon0 = min(p[1] for p in allp)
     lon1 = max(p[1] for p in allp)
 
-    z = 10
+    z = 0
     # Esri's Dark Gray Canvas maxes out at z16; higher zooms return
-    # "Map data not yet available" placeholder tiles.
-    for cand in range(16, 9, -1):
+    # placeholder tiles. Wide routes must also zoom out below z10 so
+    # long drives or GPS outliers cannot allocate an enormous raster.
+    for cand in range(16, -1, -1):
         x0, y0 = _merc(lon0, lat0, cand)
         x1, y1 = _merc(lon1, lat1, cand)
         if abs(x1 - x0) <= _MAP_W - 96 and abs(y1 - y0) <= _MAP_H - 96:
