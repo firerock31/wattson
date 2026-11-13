@@ -358,5 +358,213 @@ class EndpointConcurrencyTests(unittest.TestCase):
         self.assertEqual(self.prices(), [(100, 0.5)])
 
 
+class JsonChargeCostTests(unittest.TestCase):
+    """POST /api/charge-cost (the AJAX endpoint): guard parity,
+    validation, and transaction behavior, mirroring the form
+    endpoint's coverage in EndpointSecurityTests."""
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        root = Path(self.temp.name)
+        self.database = root / "tracker.db"
+        self.clock = Clock()
+        self.original_auth = api.auth
+        for target, value in [
+            ("api.DB_PATH", self.database),
+            ("db.DB_PATH", self.database),
+            ("report.REPORT_PATH", root / "dashboard.html"),
+            ("report.TOKENS_PATH", root / "missing-tokens"),
+            ("gasprice.get_gas_price", lambda day: 4.5),
+        ]:
+            patcher = mock.patch(target, value)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        api.auth = DashboardAuth(TOKEN, self.clock)
+        self.addCleanup(setattr, api, "auth", self.original_auth)
+        self.client = api.app.test_client(use_cookies=False)
+        db.init()
+        with db.connect() as con:
+            con.execute(
+                "INSERT INTO charges (start_ts, end_ts, minutes, soc_start,"
+                " soc_end, kwh_added, miles_added, charge_type, label)"
+                " VALUES (100, 1900, 30, 20.0, 40.0, 10.0, 30.0, 'DC',"
+                " 'Test charger')")
+            con.execute(
+                "INSERT INTO charge_prices (start_ts, user_cost_per_kwh,"
+                " updated_ts) VALUES (300, 0.6, 1700000000)")  # orphan
+
+    def tearDown(self):
+        api.auth = self.original_auth
+
+    def prices(self):
+        with db.connect() as con:
+            return [(r[0], r[1]) for r in con.execute(
+                "SELECT start_ts, user_cost_per_kwh FROM charge_prices"
+                " ORDER BY start_ts")]
+
+    def login_cookie(self):
+        resp = self.client.post(
+            "/login", data={"password": TOKEN},
+            headers={"X-Forwarded-For": "198.51.100.7"})
+        self.assertEqual(resp.status_code, 303)
+        return cookie_value(resp.headers["Set-Cookie"])
+
+    def bearer_headers(self):
+        return {"Origin": ORIGIN, "Authorization": f"Bearer {TOKEN}"}
+
+    def cookie_headers(self):
+        cookie = self.login_cookie()
+        return {"Origin": ORIGIN,
+                "Cookie": f"{SESSION_COOKIE}={cookie}"}
+
+    def post_json(self, payload=None, headers=None, raw=None):
+        kw = {"headers": headers if headers is not None
+              else self.bearer_headers()}
+        if raw is not None:
+            kw["data"] = raw
+            kw["content_type"] = "application/json"
+        else:
+            kw["json"] = payload
+        return self.client.post("/api/charge-cost", **kw)
+
+    def test_bearer_token_saves_cost_and_ignores_stale_charge_id(self):
+        # A stale charge_id from an old cached dashboard must never
+        # pick a different session than start_ts does.
+        resp = self.post_json({"charge_id": 999, "start_ts": 100,
+                               "cost_per_kwh": 0.5})
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.is_json)
+        self.assertEqual(resp.get_json(),
+                         {"ok": True, "cost_per_kwh": 0.5})
+        self.assertEqual(self.prices(), [(100, 0.5), (300, 0.6)])
+
+    def test_session_cookie_saves_and_clears(self):
+        headers = self.cookie_headers()
+        resp = self.post_json({"charge_id": 1, "start_ts": 100,
+                               "cost_per_kwh": 0.5}, headers=headers)
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(self.prices(), [(100, 0.5), (300, 0.6)])
+        for clear in ("", None):
+            resp = self.post_json({"charge_id": 1, "start_ts": 100,
+                                   "cost_per_kwh": clear}, headers=headers)
+            self.assertEqual(resp.status_code, 200)
+            self.assertIsNone(resp.get_json()["cost_per_kwh"])
+            self.assertEqual(self.prices(), [(300, 0.6)])
+            resp = self.post_json({"charge_id": 1, "start_ts": 100,
+                                   "cost_per_kwh": 0.5}, headers=headers)
+            self.assertEqual(resp.status_code, 200)
+
+    def test_cross_origin_returns_json_403(self):
+        cookie = self.login_cookie()
+        resp = self.post_json(
+            {"charge_id": 1, "start_ts": 100, "cost_per_kwh": 0.5},
+            headers={"Origin": "https://evil.example",
+                     "Cookie": f"{SESSION_COOKIE}={cookie}"})
+        self.assertEqual(resp.status_code, 403)
+        self.assertTrue(resp.is_json)
+        self.assertFalse(resp.get_json()["ok"])
+        self.assertEqual(self.prices(), [(300, 0.6)])
+
+    def test_unauthenticated_returns_json_401(self):
+        resp = self.post_json(
+            {"charge_id": 1, "start_ts": 100, "cost_per_kwh": 0.5},
+            headers={"Origin": ORIGIN})
+        self.assertEqual(resp.status_code, 401)
+        self.assertTrue(resp.is_json)
+        self.assertFalse(resp.get_json()["ok"])
+        self.assertEqual(self.prices(), [(300, 0.6)])
+
+    def test_valid_cost_boundaries_accepted(self):
+        for cost in (0.0, 10.0):
+            resp = self.post_json({"charge_id": 1, "start_ts": 100,
+                                   "cost_per_kwh": cost})
+            self.assertEqual(resp.status_code, 200)
+            self.assertEqual(self.prices(), [(100, cost), (300, 0.6)])
+
+    def test_invalid_costs_rejected(self):
+        bad = [-0.01, 10.01, "abc"]
+        for cost in bad:
+            with self.subTest(cost=cost):
+                resp = self.post_json({"charge_id": 1, "start_ts": 100,
+                                       "cost_per_kwh": cost})
+                self.assertEqual(resp.status_code, 400)
+                self.assertTrue(resp.is_json)
+                self.assertEqual(self.prices(), [(300, 0.6)])
+        for raw in ('{"charge_id": 1, "start_ts": 100,'
+                    ' "cost_per_kwh": NaN}',
+                    '{"charge_id": 1, "start_ts": 100,'
+                    ' "cost_per_kwh": Infinity}'):
+            with self.subTest(raw=raw):
+                resp = self.post_json(raw=raw)
+                self.assertEqual(resp.status_code, 400)
+                self.assertTrue(resp.is_json)
+                self.assertEqual(self.prices(), [(300, 0.6)])
+
+    def test_invalid_start_ts_rejected(self):
+        for start_ts in ("abc", None):
+            with self.subTest(start_ts=start_ts):
+                resp = self.post_json({"charge_id": 1,
+                                       "start_ts": start_ts,
+                                       "cost_per_kwh": 0.5})
+                self.assertEqual(resp.status_code, 400)
+                self.assertTrue(resp.is_json)
+                self.assertEqual(self.prices(), [(300, 0.6)])
+        resp = self.post_json({"charge_id": 1, "cost_per_kwh": 0.5})
+        self.assertEqual(resp.status_code, 400)
+        self.assertEqual(self.prices(), [(300, 0.6)])
+
+    def test_not_found_returns_404(self):
+        resp = self.post_json({"charge_id": 1, "start_ts": 999,
+                               "cost_per_kwh": 0.5})
+        self.assertEqual(resp.status_code, 404)
+        self.assertTrue(resp.is_json)
+        self.assertEqual(self.prices(), [(300, 0.6)])
+
+    def test_ambiguous_returns_409(self):
+        with db.connect() as con:
+            con.execute(
+                "INSERT INTO charges (start_ts, end_ts, minutes, soc_start,"
+                " soc_end, kwh_added, miles_added, charge_type, label)"
+                " VALUES (100, 2000, 30, 20.0, 40.0, 10.0, 30.0, 'DC',"
+                " 'Duplicate start')")
+        resp = self.post_json({"charge_id": 1, "start_ts": 100,
+                               "cost_per_kwh": 0.5})
+        self.assertEqual(resp.status_code, 409)
+        self.assertTrue(resp.is_json)
+        self.assertEqual(self.prices(), [(300, 0.6)])
+
+    def test_non_dict_body_returns_400_not_500(self):
+        # A JSON list, number, string, or boolean is not an object:
+        # the endpoint must answer 400, not crash with AttributeError.
+        for raw in ("[1, 2]", '"hello"', "42", "true"):
+            with self.subTest(raw=raw):
+                resp = self.post_json(raw=raw)
+                self.assertEqual(resp.status_code, 400)
+                self.assertTrue(resp.is_json)
+                self.assertFalse(resp.get_json()["ok"])
+
+    def test_bool_cost_and_start_ts_rejected(self):
+        resp = self.post_json({"charge_id": 1, "start_ts": 100,
+                               "cost_per_kwh": True})
+        self.assertEqual(resp.status_code, 400)
+        self.assertTrue(resp.is_json)
+        resp = self.post_json({"charge_id": 1, "start_ts": True,
+                               "cost_per_kwh": 0.5})
+        self.assertEqual(resp.status_code, 400)
+        self.assertTrue(resp.is_json)
+        self.assertEqual(self.prices(), [(300, 0.6)])
+
+    def test_db_busy_returns_json_503(self):
+        with mock.patch.object(
+                api.sqlite3, "connect",
+                side_effect=sqlite3.OperationalError("database is locked")):
+            resp = self.post_json({"charge_id": 1, "start_ts": 100,
+                                   "cost_per_kwh": 0.5})
+        self.assertEqual(resp.status_code, 503)
+        self.assertTrue(resp.is_json)
+        self.assertFalse(resp.get_json()["ok"])
+
+
 if __name__ == "__main__":
     unittest.main()

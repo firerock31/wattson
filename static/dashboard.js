@@ -214,7 +214,74 @@ var scrollRaf=null;(function(){var ease=function(t){return t<.5?4*t*t*t:1-Math.p
 ;
 
 /* DC fast-charging cost entry modal. */
-var _costChargeId=null;var _costStartTs=null;var _costOpener=null;function openCostModal(chargeId,currentVal,startTs){_costChargeId=chargeId;_costStartTs=(startTs===undefined||startTs===null)?'':startTs;document.getElementById('costinput').value=((currentVal===null||currentVal===undefined)?'':currentVal);_costOpener=document.activeElement;document.getElementById('costmodal').classList.remove('hidden');document.getElementById('costinput').focus();}function closeCostModal(){document.getElementById('costmodal').classList.add('hidden');_costChargeId=null;if(_costOpener&&_costOpener.focus)_costOpener.focus();}function saveCost(){var v=parseFloat(document.getElementById('costinput').value);if(v===null||v===undefined||isNaN(v)||v<0){alert('Enter a valid price');return;}document.getElementById('form_charge_id').value=_costChargeId;document.getElementById('form_start_ts').value=_costStartTs;document.getElementById('form_cost_per_kwh').value=v;document.getElementById('costform').submit();}function clearCost(){if(!confirm('Clear the entered cost for this session?'))return;document.getElementById('form_charge_id').value=_costChargeId;document.getElementById('form_start_ts').value=_costStartTs;document.getElementById('form_cost_per_kwh').value='';document.getElementById('costform').submit();}document.getElementById('costmodal').addEventListener('click',function(e){if(e.target===this)closeCostModal();});document.addEventListener('keydown',function(e){if(e.key==='Escape'){var m=document.getElementById('costmodal');if(m&&!m.classList.contains('hidden'))closeCostModal();}});
+var _costChargeId = null;
+var _costStartTs = null;
+var _costOpener = null;
+function openCostModal(chargeId, currentVal, startTs) {
+  _costChargeId = chargeId;
+  _costStartTs = (startTs === undefined || startTs === null) ? '' : startTs;
+  document.getElementById('costinput').value =
+    ((currentVal === null || currentVal === undefined) ? '' : currentVal);
+  _costOpener = document.activeElement;
+  document.getElementById('costmodal').classList.remove('hidden');
+  document.getElementById('costinput').focus();
+}
+function closeCostModal() {
+  document.getElementById('costmodal').classList.add('hidden');
+  _costChargeId = null;
+  if (_costOpener && _costOpener.focus) _costOpener.focus();
+}
+var _costSaving = false;
+function _postCost(costVal, onDone) {
+  // One save at a time: report.generate() blocks for a couple of
+  // seconds before responding, so a double-click would otherwise fire
+  // two POSTs and two regenerations for the same cost.
+  if (_costSaving) { return; }
+  _costSaving = true;
+  var saveBtn = document.getElementById('costsave');
+  if (saveBtn) { saveBtn.disabled = true; }
+  fetch('/api/charge-cost', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      charge_id: _costChargeId,
+      start_ts: _costStartTs,
+      cost_per_kwh: costVal
+    })
+  }).then(function(r) {
+    // A 500/502 page is HTML, not JSON: swallow the parse error so
+    // the user sees the HTTP status instead of a SyntaxError.
+    return r.json().catch(function() { return {}; }).then(function(j) {
+      return {status: r.status, body: j};
+    });
+  })
+  .then(function(res) {
+    if (res.status === 200 && res.body.ok) { onDone(); }
+    else { alert('Could not save: ' + (res.body.error || ('HTTP ' + res.status))); }
+  }).catch(function(err) { alert('Could not save: ' + err); })
+  .finally(function() {
+    _costSaving = false;
+    if (saveBtn) { saveBtn.disabled = false; }
+  });
+}
+function saveCost() {
+  var v = parseFloat(document.getElementById('costinput').value);
+  if (!isFinite(v) || v < 0 || v > 10) { alert('Enter a valid price'); return; }
+  _postCost(v, function() { closeCostModal(); location.reload(); });
+}
+function clearCost() {
+  if (!confirm('Clear the entered cost for this session?')) return;
+  _postCost('', function() { closeCostModal(); location.reload(); });
+}
+document.getElementById('costmodal').addEventListener('click', function(e) {
+  if (e.target === this) closeCostModal();
+});
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') {
+    var m = document.getElementById('costmodal');
+    if (m && !m.classList.contains('hidden')) closeCostModal();
+  }
+});
 
 ;
 

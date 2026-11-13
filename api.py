@@ -153,7 +153,7 @@ def _same_origin(request):
     return candidate is not None and candidate == expected
 
 
-def _guard_charge_post():
+def _guard_charge_post(as_json=False):
     """Auth + origin checks shared by the charging-price POST endpoints.
 
     Returns an error response, or None when the request may proceed.
@@ -164,17 +164,23 @@ def _guard_charge_post():
     CORS preflight this app never grants). Cookie-authenticated and
     unauthenticated requests always pass the origin check: cookies
     are ambient, and with no token configured the origin check is the
-    only defense a local dashboard has.
+    only defense a local dashboard has. The JSON endpoint renders
+    errors as JSON (as_json=True) so its AJAX caller keeps working;
+    the form endpoints render the error page.
     """
+    def _fail(msg, code):
+        if as_json:
+            return jsonify({"ok": False, "error": msg}), code
+        return _err_page(msg, code)
     header = request.headers.get("Authorization")
     if auth.bearer_valid(header):
         return None
     if not _same_origin(request):
-        return _err_page("Could not verify this request came from the "
-                         "dashboard. Please submit from the dashboard "
-                         "page.", 403)
+        return _fail("Could not verify this request came from the "
+                     "dashboard. Please submit from the dashboard "
+                     "page.", 403)
     if not auth.authorized(header, request.cookies.get(SESSION_COOKIE)):
-        return _err_page("Sign in to the dashboard first.", 401)
+        return _fail("Sign in to the dashboard first.", 401)
     return None
 
 
@@ -340,6 +346,76 @@ def reassign_charge_price_form():
     except Exception:
         app.logger.exception("Dashboard regeneration failed")
     return redirect("/#charging", code=303)
+
+
+@app.route("/api/charge-cost", methods=["POST"])
+def set_charge_cost():
+    """JSON version of charge-cost-form for AJAX modal saves.
+    Returns JSON instead of redirecting; the modal closes and the
+    page reloads to show the new cost. Same start_ts-only identity
+    and guard as the form endpoint; only the error rendering differs
+    (JSON, so the modal keeps working)."""
+    guard = _guard_charge_post(as_json=True)
+    if guard is not None:
+        return guard
+    data = request.get_json(force=True, silent=True) or {}
+    if not isinstance(data, dict):
+        # A JSON list, number, string, or boolean is not an object:
+        # treat it as no usable body rather than crashing on .get().
+        data = {}
+    # charge_id is accepted for old cached dashboards but never used
+    # for identity (see set_charge_cost_form).
+    data.get("charge_id")
+    start_ts = data.get("start_ts")
+    cost_per_kwh = data.get("cost_per_kwh")
+    raw = cost_per_kwh
+    if raw is None or (isinstance(raw, str) and raw.strip() == ""):
+        cost = None
+    else:
+        # JSON booleans reach here as Python bools, and float(True)
+        # is 1.0, so reject them explicitly instead of saving $1.00.
+        if isinstance(raw, bool):
+            return jsonify({"ok": False,
+                            "error": "Enter a valid price per kWh."}), 400
+        try:
+            cost = float(raw)
+        except (ValueError, TypeError):
+            return jsonify({"ok": False,
+                            "error": "Enter a valid price per kWh."}), 400
+        if math.isnan(cost) or math.isinf(cost) or not (0.0 <= cost <= 10.0):
+            return jsonify({"ok": False,
+                            "error": "Enter a price between 0 and 10 $/kWh."}), 400
+    # Same bool guard for the session key: int(True) is 1, which would
+    # look up a session that does not exist instead of failing cleanly.
+    if isinstance(start_ts, bool):
+        return jsonify({"ok": False,
+                        "error": "Invalid charging session."}), 400
+    try:
+        sts = int(start_ts)
+    except (ValueError, TypeError):
+        return jsonify({"ok": False,
+                        "error": "Invalid charging session."}), 400
+    try:
+        with sqlite3.connect(str(DB_PATH), timeout=30) as con:
+            con.execute("BEGIN IMMEDIATE")
+            status = apply_charge_price(con, sts, cost)
+            if status == "not_found":
+                return jsonify({"ok": False, "error": "That charging session is no longer in the log. Please refresh the dashboard and try again."}), 404
+            if status == "ambiguous":
+                return jsonify({"ok": False, "error": "Several sessions share that start time, so the price was not applied to any of them. Please refresh and try again."}), 409
+            con.commit()
+    except sqlite3.OperationalError as e:
+        app.logger.error("DB error: %s", e)
+        return jsonify({"ok": False,
+                        "error": "Database is busy. Please try again in a moment."}), 503
+    # Regenerate dashboard so the reload shows the new cost immediately.
+    # Cost edits are infrequent, so the few seconds this takes is worth it.
+    try:
+        import report
+        report.generate()
+    except Exception:
+        app.logger.exception("Dashboard regeneration failed")
+    return jsonify({"ok": True, "cost_per_kwh": cost})
 
 
 def _login_page(error, code):
