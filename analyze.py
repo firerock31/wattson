@@ -635,6 +635,52 @@ def _gps_moving(s, prev):
     return False
 
 
+CLIMATE_MIN_S = 10 * 60       # 10 min minimum sustained
+CLIMATE_MIN_RATE_PCT_HR = 0.4  # SoC %/hr above wind-down trickle
+
+
+def _detect_climate_segments(merged, snaps):
+    """Reclassify parked+awake segments as climate-running.
+
+    A PARKED segment becomes CLIMATE when SoC drops faster than wind-down
+    trickle over 10+ minutes. Uses snapshot SoC values at segment bounds.
+    """
+    if not snaps:
+        return merged
+    # Index snaps by ts for SoC lookup
+    soc_by_ts = {}
+    for s in snaps:
+        if s.get("soc") is not None:
+            soc_by_ts[s["ts"]] = s["soc"]
+    if not soc_by_ts:
+        return merged
+    sorted_ts = sorted(soc_by_ts)
+
+    def soc_at(ts):
+        # Nearest snapshot at or before ts
+        best = None
+        for t in sorted_ts:
+            if t <= ts:
+                best = t
+            else:
+                break
+        return soc_by_ts.get(best) if best else None
+
+    out = []
+    for a, b, st in merged:
+        if st == ACT_PARKED and (b - a) >= CLIMATE_MIN_S:
+            soc_a = soc_at(a)
+            soc_b = soc_at(b)
+            if soc_a is not None and soc_b is not None and soc_a > soc_b:
+                drop = soc_a - soc_b
+                hours = (b - a) / 3600
+                rate = drop / hours if hours > 0 else 0
+                if rate >= CLIMATE_MIN_RATE_PCT_HR:
+                    out.append([a, b, ACT_CLIMATE])
+                    continue
+        out.append([a, b, st])
+    return out
+
 def activity_segments(now=None):
     """Classify every poll interval into a car state, merged into per-day
     segments for the 24h activity bar.
@@ -752,6 +798,12 @@ def activity_segments(now=None):
             merged[-1][1] = max(merged[-1][1], b)
         else:
             merged.append([a, b, st])
+
+    # Reclassify PARKED segments as CLIMATE when the car sat parked+awake
+    # with the battery actively dropping (climate running, e.g. dog mode).
+    # Threshold: 10+ min sustained, SoC drop rate above wind-down trickle.
+    # Wind-down after parking barely moves SoC; climate pulls ~1%/hr.
+    merged = _detect_climate_segments(merged, snaps)
 
     # Split at local midnights.
     out = []

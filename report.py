@@ -490,7 +490,7 @@ __STYLES__</head>
 
 __CHARGING_TOP__
 <div class="sec-row" id="daily"><h2 class="sec">Daily activity</h2>__TRIPMONTH__</div>
-<div class="alegend"><span><i class="st-moving"></i>driving</span><span><i class="st-charging"></i>charging</span><span><i class="st-parked"></i>awake</span><span><i class="st-sleep"></i>deep sleep</span><span><i class="st-unknown"></i>no data</span></div>
+<div class="alegend"><span><i class="st-moving"></i>driving</span><span><i class="st-charging"></i>charging</span><span><i class="st-parked"></i>awake</span><span><i class="st-climate"></i>climate</span><span><i class="st-sleep"></i>deep sleep</span><span><i class="st-unknown"></i>no data</span></div>
 __TRIPS__
 
 <h2 class="sec" id="battery">Battery</h2>
@@ -811,10 +811,10 @@ def _day_map_html(day: str, dtrips: list[dict]) -> str:
 
 _ACT_CLASS = {"moving": "st-moving", "charging": "st-charging",
               "parked": "st-parked", "sleep": "st-sleep",
-              "unknown": "st-unknown"}
+              "climate": "st-climate", "unknown": "st-unknown"}
 _ACT_LABEL = {"moving": "driving", "charging": "charging",
               "parked": "awake", "sleep": "deep sleep",
-              "unknown": "no data"}
+              "climate": "climate", "unknown": "no data"}
 
 
 def _activity_bar(day_segs: list[dict], day_start: float,
