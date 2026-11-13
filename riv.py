@@ -11,6 +11,7 @@ import aiohttp
 import rivian.rivian as _rivmod
 from rivian import Rivian
 
+import governor
 from config import PROPS, TOKENS_PATH
 from crypto import unseal
 
@@ -44,15 +45,25 @@ async def _fetch(vehicle_id: str, user_session_token: str) -> dict:
     # trust_env=True so standard HTTPS_PROXY environment variables are honored.
     async with aiohttp.ClientSession(trust_env=True) as session:
         client = Rivian(session=session)
-        await client.create_csrf_token()
+        with governor.slot("riv", "csrf"):
+            await client.create_csrf_token()
         # Rehydrate the persisted user session onto a fresh app session.
         client._user_session_token = user_session_token
         try:
-            resp = await client.get_vehicle_state(vehicle_id, PROPS)
+            with governor.slot("riv", "vehicleState"):
+                resp = await client.get_vehicle_state(vehicle_id, PROPS)
         except Exception as exc:
             if _is_unauthenticated(exc):
                 raise NeedsReauth() from exc
             raise
+        if getattr(resp, "status", None) == 429:
+            retry = None
+            try:
+                retry = float(resp.headers.get("Retry-After"))
+            except Exception:
+                pass
+            governor.note_rate_limit(retry, source="riv")
+            raise RuntimeError("Rivian rate limited the state fetch (429)")
         data = await resp.json()
         return data["data"]["vehicleState"]
 

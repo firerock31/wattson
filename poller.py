@@ -31,6 +31,7 @@ from config import (BURST_HEARTBEAT_PATH, BURST_PID_PATH, FLAG_REAUTH,
                     POLL_INTERVAL_PARKED, SPEED_DRIVE_EPS, STATE_PATH,
                     TOKENS_PATH, WATCH_PATH)
 from db import init, insert_snapshot, insert_raw_snapshot
+from governor import CoolingDown
 from riv import NeedsReauth, fetch_state
 from analyze import DRIVE_GEARS, haversine_mi
 
@@ -151,6 +152,9 @@ def main() -> None:
     except NeedsReauth:
         FLAG_REAUTH.touch()
         print("Session expired - owner needs to re-link (NEEDS_REAUTH).")
+        return
+    except CoolingDown as cd:
+        print(f"Governor: {cd}")
         return
     except Exception:
         traceback.print_exc()
@@ -294,6 +298,7 @@ def burst_main(minutes: float = 48, interval: float = 120,
 
     signal.signal(signal.SIGTERM, _on_term)
     signal.signal(signal.SIGINT, _on_term)
+    last_cd_until = [0.0]
 
     while next_at < deadline:
         wait = next_at - time.time()
@@ -339,6 +344,10 @@ def burst_main(minutes: float = 48, interval: float = 120,
             FLAG_REAUTH.touch()
             print("Session expired - owner needs to re-link (NEEDS_REAUTH).")
             break
+        except CoolingDown as cd:
+            if cd.until != last_cd_until[0]:
+                last_cd_until[0] = cd.until
+                print(f"Governor: {cd}")
         except Exception:
             traceback.print_exc()
         # Adaptive cadence: 30-sec while the car is moving (odo up or GPS
