@@ -637,49 +637,58 @@ def _gps_moving(s, prev):
 
 CLIMATE_MIN_S = 10 * 60       # 10 min minimum sustained
 CLIMATE_MIN_RATE_PCT_HR = 0.4  # SoC %/hr above wind-down trickle
+CLIMATE_MIN_DROP_PCT = 0.3     # SoC % loss; a single gauge step (0.1%)
+                               # must not trigger a state change on its own
 
 
 def _detect_climate_segments(merged, snaps):
     """Reclassify parked+awake segments as climate-running.
 
-    A PARKED segment becomes CLIMATE when SoC drops faster than wind-down
-    trickle over 10+ minutes. Uses snapshot SoC values at segment bounds.
+    A PARKED segment becomes CLIMATE when the battery drops at least
+    CLIMATE_MIN_DROP_PCT over at least CLIMATE_MIN_S, at a rate of at
+    least CLIMATE_MIN_RATE_PCT_HR. SoC is read only from snapshots
+    inside the segment itself, so a drive's drop before the park (or a
+    charge's gain after it) can never leak in. Drops and rates are
+    rounded to 4 decimals first: SoC moves in 0.1% steps, and the raw
+    float subtraction of two such readings can land a hair either side
+    of a threshold (0.1% over 10 min is 0.60%/hr, but 0.3% over 45 min
+    computes as 0.39999999999999997).
+
+    This is INFERRED, not measured: there is no direct climate signal
+    in the data. Anything that pulls >=0.4%/hr from a parked, awake
+    car for 10+ minutes reads as climate: cabin HVAC, but also BMS
+    thermal conditioning, an OTA update, or a 120V outlet load. And
+    the check is whole-segment: a park that mixes idle time with a
+    short climate run averages the two, so a long idle stretch can
+    hide a real climate run and a short one can paint the whole park
+    as climate. Treat the label as "sustained high parked drain",
+    not proof the HVAC was on.
     """
-    if not snaps:
-        return merged
-    # Index snaps by ts for SoC lookup
-    soc_by_ts = {}
-    for s in snaps:
-        if s.get("soc") is not None:
-            soc_by_ts[s["ts"]] = s["soc"]
-    if not soc_by_ts:
-        return merged
-    sorted_ts = sorted(soc_by_ts)
+    from bisect import bisect_left, bisect_right
 
-    def soc_at(ts):
-        # Nearest snapshot at or before ts
-        best = None
-        for t in sorted_ts:
-            if t <= ts:
-                best = t
-            else:
-                break
-        return soc_by_ts.get(best) if best else None
-
+    soc_pts = sorted((s["ts"], s["soc"]) for s in snaps
+                     if s.get("soc") is not None)
+    if not soc_pts:
+        return merged
+    times = [t for t, _ in soc_pts]
     out = []
     for a, b, st in merged:
         if st == ACT_PARKED and (b - a) >= CLIMATE_MIN_S:
-            soc_a = soc_at(a)
-            soc_b = soc_at(b)
-            if soc_a is not None and soc_b is not None and soc_a > soc_b:
-                drop = soc_a - soc_b
-                hours = (b - a) / 3600
-                rate = drop / hours if hours > 0 else 0
-                if rate >= CLIMATE_MIN_RATE_PCT_HR:
-                    out.append([a, b, ACT_CLIMATE])
-                    continue
+            lo = bisect_left(times, a)        # first snap at or after a
+            hi = bisect_right(times, b) - 1   # last snap at or before b
+            if lo <= hi and times[lo] < b and times[hi] > a:
+                ta, soc_a = soc_pts[lo]
+                tb, soc_b = soc_pts[hi]
+                if (tb - ta) >= CLIMATE_MIN_S:
+                    drop = round(soc_a - soc_b, 4)
+                    if drop >= CLIMATE_MIN_DROP_PCT:
+                        rate = round(drop / ((tb - ta) / 3600.0), 4)
+                        if rate >= CLIMATE_MIN_RATE_PCT_HR:
+                            out.append([a, b, ACT_CLIMATE])
+                            continue
         out.append([a, b, st])
     return out
+
 
 def activity_segments(now=None):
     """Classify every poll interval into a car state, merged into per-day

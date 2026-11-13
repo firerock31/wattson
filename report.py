@@ -828,9 +828,9 @@ def _activity_bar(day_segs: list[dict], day_start: float,
         if b <= a:
             continue
         tip = (f'{_fmt_time(s["start_ts"])}-{_fmt_time(s["end_ts"])} '
-               f'{_ACT_LABEL[s["state"]]}')
+               f'{_ACT_LABEL.get(s["state"], s["state"])}')
         parts.append(
-            f'<div class="aseg {_ACT_CLASS[s["state"]]}" '
+            f'<div class="aseg {_ACT_CLASS.get(s["state"], "st-unknown")}" '
             f'style="--l:{a / 14.4:.2f}%;--w:{(b - a) / 14.4:.2f}%" '
             f'title="{_esc(tip)}"></div>')
     if now_min is not None:
