@@ -16,6 +16,7 @@ import asyncio
 import statistics
 import time
 
+import governor
 from config import TIRE_TARGET_PSI
 
 TIRES_RVM = "dynamics.tires.state"
@@ -101,14 +102,16 @@ async def _grab_async(vehicle_id: str, user_session_token: str):
     try:
         async with aiohttp.ClientSession(trust_env=True) as session:
             client = Rivian(session=session)
-            await client.create_csrf_token()
+            with governor.slot("tires", "csrf"):
+                await client.create_csrf_token()
             # Same rehydration the regular fetch uses (see riv._fetch).
             client._user_session_token = user_session_token
             unsub = None
             try:
-                unsub = await client.subscribe_for_parallax_messages(
-                    vehicle_id, _cb, rvms=[TIRES_RVM]
-                )
+                with governor.slot("tires", "subscribe"):
+                    unsub = await client.subscribe_for_parallax_messages(
+                        vehicle_id, _cb, rvms=[TIRES_RVM]
+                    )
                 if unsub is not None:
                     await asyncio.wait_for(done.wait(), timeout=GRAB_TIMEOUT_S)
             finally:

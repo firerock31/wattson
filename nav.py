@@ -25,6 +25,8 @@ session plumbing):
 import asyncio
 import base64
 import json
+
+import governor
 import math
 import threading
 import time
@@ -90,7 +92,8 @@ async def _open_client():
     tokens = unseal(TOKENS_PATH.read_bytes())
     session = aiohttp.ClientSession(trust_env=True)
     client = Rivian(session=session)
-    await client.create_csrf_token()
+    with governor.slot("nav", "csrf", priority=True):
+        await client.create_csrf_token()
     # Rehydrate the persisted user session onto the fresh app session
     # (same approach as riv._fetch).
     client._user_session_token = tokens["user_session_token"]
@@ -113,7 +116,8 @@ async def _ids(client, tokens) -> tuple[str, str]:
     """(user_id, vehicle_id) for our vehicle, cached per process."""
     if _ids_cache:
         return _ids_cache["user_id"], _ids_cache["vehicle_id"]
-    resp = await client.get_user_information()
+    with governor.slot("nav", "userInfo", priority=True):
+        resp = await client.get_user_information()
     payload = await resp.json()
     user = (payload.get("data") or {}).get("currentUser") or {}
     vehicle_id = None
@@ -134,8 +138,9 @@ async def _gql(client, operation, query, variables):
                     "A-Sess": client._app_session_token,
                     "U-Sess": client._user_session_token})
     body = {"operationName": operation, "query": query, "variables": variables}
-    resp = await client._Rivian__graphql_query(
-        headers, _rivmod.GRAPHQL_GATEWAY, body)
+    with governor.slot("nav", operation, priority=True):
+        resp = await client._Rivian__graphql_query(
+            headers, _rivmod.GRAPHQL_GATEWAY, body)
     return (await resp.json()).get("data") or {}
 
 
@@ -595,8 +600,9 @@ async def _send_and_confirm_async(place, mode, round_trip, home, origin,
     try:
         _, vehicle_id = await _ids(client, tokens)
         watch = _RouteWatch()
-        unsub = await client.subscribe_for_parallax_messages(
-            vehicle_id, watch.cb, rvms=[TRIP_INFO_RVM])
+        with governor.slot("nav", "subscribe", priority=True):
+            unsub = await client.subscribe_for_parallax_messages(
+                vehicle_id, watch.cb, rvms=[TRIP_INFO_RVM])
         if unsub is None:
             raise RuntimeError("Could not subscribe to the car's route reports")
         try:
@@ -666,8 +672,9 @@ async def _current_route_async(timeout: float = 15):
     try:
         _, vehicle_id = await _ids(client, tokens)
         watch = _RouteWatch()
-        unsub = await client.subscribe_for_parallax_messages(
-            vehicle_id, watch.cb, rvms=[TRIP_INFO_RVM])
+        with governor.slot("nav", "subscribe", priority=True):
+            unsub = await client.subscribe_for_parallax_messages(
+                vehicle_id, watch.cb, rvms=[TRIP_INFO_RVM])
         if unsub is None:
             return None
         try:
