@@ -1515,10 +1515,10 @@ def _open_park_estimate(d: dict, snapshots) -> dict:
         elif drop < 0:
             drop = 0.0
             approx = True
-        elif drop <= 0.3:
+        elif drop <= 0.300001:
             approx = True
     pct_day = None
-    if drop is not None and not plugged and elapsed_h >= 2 and drop > 0.3:
+    if drop is not None and not plugged and elapsed_h >= 2 and drop > 0.300001:
         pct_day = round(drop / (elapsed_h / 24.0), 2)
     return {
         "since_ts": since,
@@ -2124,7 +2124,7 @@ def generate() -> None:
                 bits.append("no drop so far")
         sl = open_park.get("sleep") or {}
         if sl.get("online_h") is not None and sl["online_h"] >= 0.5:
-            bits.append(f"awake ~{sl['online_h']:.0f} h of it")
+            bits.append(f"awake ~{sl['online_h']:.1f} h of it")
         trend_bars = (f'<div class="sub">{" &bull; ".join(bits)}</div>'
                       + trend_bars)
     trip_month_html, trips_html = _activity_html(
