@@ -5,6 +5,64 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0] - 2026-11-13
+### Added
+- Phantom drain chart: short ranges now draw a one-row timeline
+  (real time on the x-axis, segment length = duration) instead of
+  per-park bars, with all value labels in watts; the average line
+  shows miles lost per parked day.
+- Outbound Rivian cloud calls are now paced through a shared traffic
+  governor (3 s spacing, 5/15/60 min cooldown ladder on rate
+  limits, fail-fast during cooldowns), with a quiet dashboard note
+  while a cooldown is active.
+- The open park now shows a running drain estimate (charge lost so
+  far, implied %/day, awake share), and closed parks are labeled
+  awake/asleep from the cloud-online signal.
+- Parked periods with the climate running are now shown as their
+  own activity class on the daily activity bar.
+- Trip rows now show the drive mode.
+- Send destination: the dashboard now refuses a send while the car
+  is already navigating somewhere else, and offers Send anyway to
+  override. A place counts as the same destination when its name
+  matches or its coordinates are within half a mile, and the check
+  fails open, so a send is never blocked by a check that could not
+  run.
+### Changed
+- DC cost entry now saves in place with the error shown in the
+  modal.
+- Charging-log rows all start collapsed.
+### Fixed
+- Send destination: an address from search is now sent as a trip
+  instead of a bare link, so it becomes a route in the car. A shared
+  coordinate link is accepted by the cloud but the car cannot
+  resolve it into a place, which used to leave the send looking
+  failed while the car kept its previous route.
+- Send destination: the modal now reports Sent as soon as the cloud
+  accepts a send, instead of only confirmed or failed, and keeps
+  watching for the car's own route report to upgrade it to
+  confirmed. The Send button also re-enables on every terminal
+  state, including the modal timeout.
+- Send destination: search results without a business name now show
+  the full address as the row title instead of a blank.
+- Send destination: route confirmation now matches the sent place
+  against the correct leg of a multi-stop route (the final
+  destination one way, the first stop on a round trip, which must
+  also end at home), so a route passing near the sent place on its
+  way elsewhere can no longer confirm a send by accident.
+  Confirmation radius tightened to 0.1 miles.
+- Linker login failures now report the actual problem instead of one
+  generic rejection: invalid credentials, a temporary account lock,
+  rate limiting, and an expired sign-in session at the one-time code
+  step each get their own message, so a failed link attempt says what
+  to do next. Error details are still never printed, since the
+  underlying errors can carry the request (password included).
+- Trip maps no longer allocate an enormous raster for long routes
+  or GPS outliers: the zoom floor is dropped so the route fits the
+  viewport instead. Contributed by @shanselman.
+- PII scan: the workflow scan is green again. Its example origin
+  in config.py used a real dashboard host; replaced with a generic
+  placeholder.
+
 ## [0.9.1] - 2026-10-23
 ### Fixed
 - Phantom drain hero tile: now headlines the last completed park's
