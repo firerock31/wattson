@@ -1615,6 +1615,14 @@ def _idle_table(periods: list[dict], bad: set) -> str:
         if o.get("reports"):
             dur += (f" &middot; {o['reports']} "
                     f"report{'s' if o['reports'] != 1 else ''}")
+        sl = o.get("sleep") or {}
+        on_h, un_h = sl.get("online_h"), sl.get("unknown_h")
+        if on_h is not None and on_h >= 0.5:
+            dur += f" &middot; awake ~{on_h:.1f} h"
+        elif on_h is not None and un_h is not None:
+            tot_h = (sl.get("quiet_h") or 0) + on_h + un_h
+            if tot_h and un_h <= 0.25 * tot_h:
+                dur += " &middot; asleep throughout"
         rows.append(
             f"<tr><td>{label}</td>"
             f"<td>{dur}</td>"
@@ -1632,6 +1640,58 @@ def _idle_table(periods: list[dict], bad: set) -> str:
 
 
 
+def _open_park_estimate(d: dict, snapshots) -> dict:
+    """Running estimate for the still-open park (car parked right now).
+
+    The open span has a start anchor (the car's last report after
+    parking) but no end anchor, so it can never be measured the way a
+    closed span is. What it can honestly show: how long the car has
+    been parked, how much charge has gone so far (start anchor vs the
+    latest reading), and the daily rate that implies if it holds.
+    Rates are withheld while plugged in (top-offs mask drain) and
+    until the drop clears a few gauge steps; small drops wear a ~,
+    matching the closed-span convention. A real gain while parked
+    means it charged, whatever the polls caught, so no drop is shown.
+    """
+    since = d["sleep_ts"]
+    soc0 = d.get("soc_start")
+    win = [s for s in snapshots if s["ts"] >= since]
+    last = max(win, key=lambda s: s["ts"]) if win else None
+    soc_now = last.get("soc") if last else None
+    last_ts = last["ts"] if last else since
+    elapsed_h = max(0.0, (last_ts - since) / 3600.0)
+    plugged = any((s.get("charger_state") or "") in
+                  ("charging_active", "charging_complete",
+                   "charging_scheduled", "charging_user_stopped")
+                  for s in win)
+    drop = None
+    approx = False
+    if soc0 is not None and soc_now is not None:
+        drop = soc0 - soc_now
+        if drop < -0.15:
+            plugged = True
+            drop = None
+        elif drop < 0:
+            drop = 0.0
+            approx = True
+        elif drop <= 0.300001:
+            approx = True
+    pct_day = None
+    if drop is not None and not plugged and elapsed_h >= 2 and drop > 0.300001:
+        pct_day = round(drop / (elapsed_h / 24.0), 2)
+    return {
+        "since_ts": since,
+        "soc": soc0,
+        "soc_now": soc_now,
+        "elapsed_h": round(elapsed_h, 1),
+        "drop": (round(drop, 1) if drop is not None else None),
+        "approx": approx,
+        "plugged": plugged,
+        "pct_day": pct_day,
+        "sleep": _sleep_share(snapshots, since, last_ts, elapsed_h),
+    }
+
+
 def _idle_history(drains: list[dict], snapshots) -> tuple[list[dict], dict | None]:
     """Idle periods between drives, oldest first, plus the open park.
 
@@ -1639,8 +1699,11 @@ def _idle_history(drains: list[dict], snapshots) -> tuple[list[dict], dict | Non
     anchors (the car's last report after parking, its first report on
     waking). Periods that were plugged in, or that lack both anchors,
     carry no rate. The still-open park (car parked right now) is
-    returned separately: it has no end anchor yet, so it cannot be
-    measured, only noted.
+    returned separately with a running estimate: it has no end anchor
+    yet, so it cannot be measured, only tracked so far. Each period
+    also carries a sleep share (how much of the park the car spent
+    awake, from the cloud-online signal) so a high drain with a mostly
+    awake car reads differently from the same drain asleep.
     """
     out = []
     open_park = None
@@ -1649,7 +1712,7 @@ def _idle_history(drains: list[dict], snapshots) -> tuple[list[dict], dict | Non
                         if s.get("cloud_sync_ts")})
     for d in drains:
         if d.get("open_span"):
-            open_park = {"since_ts": d["sleep_ts"], "soc": d.get("soc_start")}
+            open_park = _open_park_estimate(d, snapshots)
             continue
         t1, t2 = d["sleep_ts"], d["wake_ts"]
         measured = bool(d.get("measured"))
@@ -1694,10 +1757,26 @@ def _idle_history(drains: list[dict], snapshots) -> tuple[list[dict], dict | Non
             "window": f"{_fmt_ts(w1)} \u2192 {_fmt_ts(w2)}",
             "t1": t1, "t2": t2,
             "wake_count": 0,
+            "sleep": _sleep_share(snapshots, t1, t2, (t2 - t1) / 3600.0),
         })
     return out, open_park
 
 
+
+
+def _sleep_share(snapshots, t1: int, t2: int, hrs: float) -> dict:
+    """Share of a parked window the car spent quiet (cloud offline, our best
+    deep-sleep proxy) vs online vs unknown. cloud_online is null on polls
+    from before we started storing it."""
+    win = [s for s in snapshots if t1 <= s["ts"] <= t2]
+    if not win or not hrs:
+        return {"quiet_h": None, "online_h": None, "unknown_h": None}
+    nq = sum(1 for s in win if s.get("cloud_online") == 0)
+    no = sum(1 for s in win if s.get("cloud_online") == 1)
+    nu = len(win) - nq - no
+    return {"quiet_h": round(hrs * nq / len(win), 1),
+            "online_h": round(hrs * no / len(win), 1),
+            "unknown_h": round(hrs * nu / len(win), 1)}
 
 
 def _tire_tile_html(con, now):
@@ -2180,10 +2259,24 @@ def generate() -> None:
     else:
         trend_note = ""
     if open_park:
-        soc_bit = (f" &bull; last reading {open_park['soc']:.0f}%"
-                   if open_park.get("soc") is not None else "")
-        trend_bars = (f'<div class="sub">Parked now &bull; since '
-                      f'{_fmt_ts(open_park["since_ts"])}{soc_bit}</div>'
+        bits = [f"Parked now &bull; since {_fmt_ts(open_park['since_ts'])}"]
+        if open_park.get("soc_now") is not None:
+            bits.append(f"battery {open_park['soc_now']:.0f}%")
+        drop = open_park.get("drop")
+        elapsed = open_park.get("elapsed_h") or 0
+        if drop is not None and elapsed >= 1 and not open_park.get("plugged"):
+            if drop > 0:
+                tilde = "~" if open_park.get("approx") else ""
+                bit = f"down {tilde}{drop:.1f}% in {elapsed:.1f} h so far"
+                if open_park.get("pct_day") is not None:
+                    bit += f" (~{open_park['pct_day']:.1f}%/day if it holds)"
+                bits.append(bit)
+            else:
+                bits.append("no drop so far")
+        sl = open_park.get("sleep") or {}
+        if sl.get("online_h") is not None and sl["online_h"] >= 0.5:
+            bits.append(f"awake ~{sl['online_h']:.1f} h of it")
+        trend_bars = (f'<div class="sub">{" &bull; ".join(bits)}</div>'
                       + trend_bars)
     trip_month_html, trips_html = _activity_html(
         trips, errands, activity_segments())
