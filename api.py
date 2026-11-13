@@ -351,13 +351,18 @@ def reassign_charge_price_form():
 @app.route("/api/charge-cost", methods=["POST"])
 def set_charge_cost():
     """JSON version of charge-cost-form for AJAX modal saves.
-    Returns JSON instead of redirecting, so the page updates in place.
-    Same start_ts-only identity and guard as the form endpoint; only
-    the error rendering differs (JSON, so the modal keeps working)."""
+    Returns JSON instead of redirecting; the modal closes and the
+    page reloads to show the new cost. Same start_ts-only identity
+    and guard as the form endpoint; only the error rendering differs
+    (JSON, so the modal keeps working)."""
     guard = _guard_charge_post(as_json=True)
     if guard is not None:
         return guard
     data = request.get_json(force=True, silent=True) or {}
+    if not isinstance(data, dict):
+        # A JSON list, number, string, or boolean is not an object:
+        # treat it as no usable body rather than crashing on .get().
+        data = {}
     # charge_id is accepted for old cached dashboards but never used
     # for identity (see set_charge_cost_form).
     data.get("charge_id")
@@ -367,6 +372,11 @@ def set_charge_cost():
     if raw is None or (isinstance(raw, str) and raw.strip() == ""):
         cost = None
     else:
+        # JSON booleans reach here as Python bools, and float(True)
+        # is 1.0, so reject them explicitly instead of saving $1.00.
+        if isinstance(raw, bool):
+            return jsonify({"ok": False,
+                            "error": "Enter a valid price per kWh."}), 400
         try:
             cost = float(raw)
         except (ValueError, TypeError):
@@ -375,6 +385,11 @@ def set_charge_cost():
         if math.isnan(cost) or math.isinf(cost) or not (0.0 <= cost <= 10.0):
             return jsonify({"ok": False,
                             "error": "Enter a price between 0 and 10 $/kWh."}), 400
+    # Same bool guard for the session key: int(True) is 1, which would
+    # look up a session that does not exist instead of failing cleanly.
+    if isinstance(start_ts, bool):
+        return jsonify({"ok": False,
+                        "error": "Invalid charging session."}), 400
     try:
         sts = int(start_ts)
     except (ValueError, TypeError):

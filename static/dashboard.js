@@ -231,7 +231,15 @@ function closeCostModal() {
   _costChargeId = null;
   if (_costOpener && _costOpener.focus) _costOpener.focus();
 }
+var _costSaving = false;
 function _postCost(costVal, onDone) {
+  // One save at a time: report.generate() blocks for a couple of
+  // seconds before responding, so a double-click would otherwise fire
+  // two POSTs and two regenerations for the same cost.
+  if (_costSaving) { return; }
+  _costSaving = true;
+  var saveBtn = document.getElementById('costsave');
+  if (saveBtn) { saveBtn.disabled = true; }
   fetch('/api/charge-cost', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
@@ -240,15 +248,25 @@ function _postCost(costVal, onDone) {
       start_ts: _costStartTs,
       cost_per_kwh: costVal
     })
-  }).then(function(r) { return r.json().then(function(j) { return {status: r.status, body: j}; }); })
+  }).then(function(r) {
+    // A 500/502 page is HTML, not JSON: swallow the parse error so
+    // the user sees the HTTP status instead of a SyntaxError.
+    return r.json().catch(function() { return {}; }).then(function(j) {
+      return {status: r.status, body: j};
+    });
+  })
   .then(function(res) {
     if (res.status === 200 && res.body.ok) { onDone(); }
     else { alert('Could not save: ' + (res.body.error || ('HTTP ' + res.status))); }
-  }).catch(function(err) { alert('Could not save: ' + err); });
+  }).catch(function(err) { alert('Could not save: ' + err); })
+  .finally(function() {
+    _costSaving = false;
+    if (saveBtn) { saveBtn.disabled = false; }
+  });
 }
 function saveCost() {
   var v = parseFloat(document.getElementById('costinput').value);
-  if (v === null || v === undefined || isNaN(v) || v < 0) { alert('Enter a valid price'); return; }
+  if (!isFinite(v) || v < 0 || v > 10) { alert('Enter a valid price'); return; }
   _postCost(v, function() { closeCostModal(); location.reload(); });
 }
 function clearCost() {

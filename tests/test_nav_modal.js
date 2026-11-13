@@ -20,6 +20,7 @@ const DASHBOARD_JS = process.env.DASHBOARD_JS ||
   path.join(__dirname, '..', 'static', 'dashboard.js');
 
 function makeEl() {
+  const classes = new Set();
   return {
     textContent: '',
     innerHTML: '',
@@ -27,10 +28,12 @@ function makeEl() {
     disabled: false,
     dataset: {},
     classList: {
-      add() {},
-      remove() {},
-      toggle() {},
-      contains() { return false; },
+      add(c) { classes.add(c); },
+      remove(c) { classes.delete(c); },
+      toggle(c) {
+        if (classes.has(c)) classes.delete(c); else classes.add(c);
+      },
+      contains(c) { return classes.has(c); },
     },
     addEventListener() {},
     focus() {},
@@ -59,6 +62,9 @@ function loadModal(fetchMock) {
   const elements = {};
   const timers = new Map();
   let nextTimer = 1;
+  const reloadCalls = { count: 0 };
+  const alerts = [];
+  const confirmResult = { value: false };
   const sandbox = {
     window: {
       scrollY: 0,
@@ -83,8 +89,9 @@ function loadModal(fetchMock) {
     },
     requestAnimationFrame: () => 0,
     performance: { now: () => 0 },
-    alert() {},
-    confirm() { return false; },
+    location: { reload: () => { reloadCalls.count += 1; } },
+    alert: (msg) => { alerts.push(msg); },
+    confirm: () => confirmResult.value,
     console,
     fetch: fetchMock,
     setInterval: (fn) => {
@@ -99,7 +106,7 @@ function loadModal(fetchMock) {
   vm.createContext(sandbox);
   vm.runInContext(fs.readFileSync(DASHBOARD_JS, 'utf8'), sandbox,
     { filename: DASHBOARD_JS });
-  return { sandbox, elements, timers };
+  return { sandbox, elements, timers, reloadCalls, alerts, confirmResult };
 }
 
 // Drives one polling tick: invoke the nav interval callback, then
@@ -275,4 +282,166 @@ describe('nav modal active-trip guard', () => {
     assert.equal(ctx.elements.navsendbtn.textContent, 'Send');
     assert.equal(ctx.elements.navsendbtn.disabled, false);
   });
+});
+
+function makeCostMock(outcomes) {
+  // outcomes: per POST, { status, body } or { reject: true } (fetch
+  // failure) or { status, badJson: true } (a non-JSON error page).
+  // Records the request URL and parsed body of every call.
+  const calls = [];
+  let i = 0;
+  const mock = (url, opts) => {
+    calls.push({ url, body: JSON.parse(opts.body) });
+    const outcome = outcomes[i++];
+    if (!outcome || outcome.reject) {
+      return Promise.reject(new Error('offline'));
+    }
+    if (outcome.badJson) {
+      return Promise.resolve({
+        status: outcome.status,
+        json: () => Promise.reject(
+          new SyntaxError('Unexpected token < in JSON')),
+      });
+    }
+    return Promise.resolve({
+      status: outcome.status,
+      json: () => Promise.resolve(outcome.body),
+    });
+  };
+  mock.calls = calls;
+  return mock;
+}
+
+describe('cost modal AJAX save', () => {
+  function openCost(ctx, chargeId, currentVal, startTs) {
+    ctx.sandbox.openCostModal(chargeId, currentVal, startTs);
+  }
+
+  test('saveCost posts the cost and reloads on success', async () => {
+    const fetchMock = makeCostMock([
+      { status: 200, body: { ok: true, cost_per_kwh: 0.5 } },
+    ]);
+    const ctx = loadModal(fetchMock);
+    openCost(ctx, 1, null, 100);
+    ctx.elements.costinput.value = '0.5';
+    ctx.sandbox.saveCost();
+    await flush();
+    assert.equal(fetchMock.calls.length, 1);
+    assert.equal(fetchMock.calls[0].url, '/api/charge-cost');
+    assert.deepEqual(fetchMock.calls[0].body,
+      { charge_id: 1, start_ts: 100, cost_per_kwh: 0.5 });
+    assert.equal(ctx.reloadCalls.count, 1);
+    assert.equal(ctx.elements.costmodal.classList.contains('hidden'), true);
+    assert.equal(ctx.elements.costsave.disabled, false);
+  });
+
+  test('saveCost rejects bad input without fetching', async () => {
+    const fetchMock = makeCostMock([]);
+    const ctx = loadModal(fetchMock);
+    openCost(ctx, 1, null, 100);
+    for (const value of ['abc', '-1', '11', '']) {
+      ctx.elements.costinput.value = value;
+      ctx.sandbox.saveCost();
+    }
+    await flush();
+    assert.equal(fetchMock.calls.length, 0);
+    assert.equal(ctx.alerts.length, 4);
+    assert.ok(ctx.alerts.every((m) => m === 'Enter a valid price'));
+    assert.equal(ctx.reloadCalls.count, 0);
+  });
+
+  test('saveCost server error alerts and does not reload', async () => {
+    const fetchMock = makeCostMock([
+      { status: 400,
+        body: { ok: false,
+                error: 'Enter a price between 0 and 10 $/kWh.' } },
+    ]);
+    const ctx = loadModal(fetchMock);
+    openCost(ctx, 1, null, 100);
+    ctx.elements.costinput.value = '0.5';
+    ctx.sandbox.saveCost();
+    await flush();
+    assert.equal(fetchMock.calls.length, 1);
+    assert.equal(ctx.alerts.length, 1);
+    assert.equal(ctx.alerts[0],
+      'Could not save: Enter a price between 0 and 10 $/kWh.');
+    assert.equal(ctx.reloadCalls.count, 0);
+    assert.equal(ctx.elements.costsave.disabled, false);
+  });
+
+  test('_postCost survives a non-JSON 500 page', async () => {
+    const fetchMock = makeCostMock([{ status: 500, badJson: true }]);
+    const ctx = loadModal(fetchMock);
+    openCost(ctx, 1, null, 100);
+    ctx.elements.costinput.value = '0.5';
+    ctx.sandbox.saveCost();
+    await flush();
+    assert.equal(ctx.alerts.length, 1);
+    assert.equal(ctx.alerts[0], 'Could not save: HTTP 500');
+    assert.equal(ctx.reloadCalls.count, 0);
+  });
+
+  test('_postCost fetch failure alerts and re-enables', async () => {
+    const fetchMock = makeCostMock([{ reject: true }]);
+    const ctx = loadModal(fetchMock);
+    openCost(ctx, 1, null, 100);
+    ctx.elements.costinput.value = '0.5';
+    ctx.sandbox.saveCost();
+    await flush();
+    assert.equal(ctx.alerts.length, 1);
+    assert.ok(ctx.alerts[0].startsWith('Could not save: '));
+    assert.ok(ctx.alerts[0].includes('offline'));
+    assert.equal(ctx.reloadCalls.count, 0);
+    assert.equal(ctx.elements.costsave.disabled, false);
+  });
+
+  test('clearCost posts an empty cost after confirm', async () => {
+    const fetchMock = makeCostMock([
+      { status: 200, body: { ok: true, cost_per_kwh: null } },
+    ]);
+    const ctx = loadModal(fetchMock);
+    ctx.confirmResult.value = true;
+    openCost(ctx, 1, 0.5, 100);
+    ctx.sandbox.clearCost();
+    await flush();
+    assert.equal(fetchMock.calls.length, 1);
+    assert.equal(fetchMock.calls[0].body.cost_per_kwh, '');
+    assert.equal(ctx.reloadCalls.count, 1);
+  });
+
+  test('clearCost does nothing when confirm is cancelled', async () => {
+    const fetchMock = makeCostMock([]);
+    const ctx = loadModal(fetchMock);
+    ctx.confirmResult.value = false;
+    openCost(ctx, 1, 0.5, 100);
+    ctx.sandbox.clearCost();
+    await flush();
+    assert.equal(fetchMock.calls.length, 0);
+    assert.equal(ctx.reloadCalls.count, 0);
+  });
+
+  test('double saveCost while a save is in flight posts only once',
+    async () => {
+      let resolveFetch;
+      const calls = [];
+      const fetchMock = (url, opts) => {
+        calls.push({ url, body: JSON.parse(opts.body) });
+        return new Promise((resolve) => { resolveFetch = resolve; });
+      };
+      const ctx = loadModal(fetchMock);
+      openCost(ctx, 1, null, 100);
+      ctx.elements.costinput.value = '0.5';
+      ctx.sandbox.saveCost();
+      assert.equal(ctx.elements.costsave.disabled, true);
+      ctx.sandbox.saveCost();
+      await flush();
+      assert.equal(calls.length, 1);
+      resolveFetch({
+        status: 200,
+        json: () => Promise.resolve({ ok: true, cost_per_kwh: 0.5 }),
+      });
+      await flush();
+      assert.equal(ctx.reloadCalls.count, 1);
+      assert.equal(ctx.elements.costsave.disabled, false);
+    });
 });
