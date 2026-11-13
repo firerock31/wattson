@@ -345,9 +345,20 @@ def burst_main(minutes: float = 48, interval: float = 120,
             print("Session expired - owner needs to re-link (NEEDS_REAUTH).")
             break
         except CoolingDown as cd:
+            # The burst is alive, just paused: keep the heartbeat fresh
+            # so the overlap guard does not mistake it for a dead burst
+            # and start a duplicate worker.
+            touch_heartbeat()
             if cd.until != last_cd_until[0]:
                 last_cd_until[0] = cd.until
                 print(f"Governor: {cd}")
+                # Rebuild the dashboard now so the pause banner shows
+                # immediately. Every poll during a cooldown raises, so
+                # without this the banner would never render while paused.
+                try:
+                    _derive_and_report()
+                except Exception:
+                    traceback.print_exc()
         except Exception:
             traceback.print_exc()
         # Adaptive cadence: 30-sec while the car is moving (odo up or GPS

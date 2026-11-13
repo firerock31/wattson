@@ -2068,9 +2068,7 @@ def generate() -> None:
         _cd_until = _governor.cooldown_until()
         if _cd_until:
             gov_note = (
-                '<div style="margin:0 0 14px;padding:10px 14px;'
-                'border:1px solid #b58900;border-radius:10px;'
-                'background:rgba(181,137,0,.12);font-size:14px">'
+                '<div class="gov-note">'
                 "Rivian cloud asked us to slow down, so polling is "
                 f"paused until {_fmt_time(int(_cd_until))}.</div>")
     except Exception:

@@ -252,3 +252,4 @@ table.drain tr:last-child td,table.ctab tr:last-child td{border-bottom:0}
 .swatch{display:inline-block;width:10px;height:10px;border-radius:5px;margin-right:6px}
 .legend-row{display:flex;flex-wrap:wrap;gap:6px 18px;margin:2px 0 8px;font-size:13px;color:var(--dim)}
 .lbl14{font-size:14px;cursor:pointer;margin-top:14px!important}
+.gov-note{margin:0 0 14px;padding:10px 14px;border:1px solid #b58900;border-radius:10px;background:rgba(181,137,0,.12);font-size:14px}

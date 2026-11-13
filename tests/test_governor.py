@@ -4,6 +4,7 @@ Needs config.py importable (run from the tracker code dir or staging).
 """
 import json
 import os
+import shutil
 import sys
 import tempfile
 import unittest
@@ -40,12 +41,26 @@ class GovernorTest(unittest.TestCase):
         self.tmp = tempfile.mkdtemp()
         self.clock = FakeClock()
         self.logs = []
+        self._orig = {
+            "STATE_PATH": governor.STATE_PATH,
+            "LOCK_PATH": governor.LOCK_PATH,
+            "_now": governor._now,
+            "_sleep": governor._sleep,
+            "_log": governor._log,
+        }
         governor.STATE_PATH = Path(self.tmp) / "governor_state.json"
         governor.LOCK_PATH = Path(self.tmp) / "governor_state.json.lock"
         governor._now = self.clock.now
         governor._sleep = self.clock.sleep
         governor._log = lambda c, k, o, d="": self.logs.append((c, k, o, d))
+        governor._local.depth = 0
         os.environ.pop("RIVIAN_GOVERNOR", None)
+        self.addCleanup(self._restore)
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+
+    def _restore(self):
+        for key, value in self._orig.items():
+            setattr(governor, key, value)
 
     def state(self):
         p = governor.STATE_PATH
@@ -133,6 +148,22 @@ class GovernorTest(unittest.TestCase):
     def test_cooldown_until_none_when_expired(self):
         governor.note_rate_limit(None, source="test")
         self.clock.t += 301
+        self.assertIsNone(governor.cooldown_until())
+
+    def test_nested_slot_passes_without_double_spacing(self):
+        with governor.slot("poller", "vehicleState"):
+            with governor.slot("nav", "subscribe"):
+                pass
+        self.assertTrue(any(o == "nested" for _, _, o, _ in self.logs))
+        self.assertEqual(self.clock.slept, [])
+        self.assertEqual(getattr(governor._local, "depth", 0), 0)
+
+    def test_nested_slot_error_restores_depth(self):
+        with self.assertRaises(ValueError):
+            with governor.slot("poller", "vehicleState"):
+                with governor.slot("nav", "subscribe"):
+                    raise ValueError("boom")
+        self.assertEqual(getattr(governor._local, "depth", 0), 0)
         self.assertIsNone(governor.cooldown_until())
 
 

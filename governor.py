@@ -28,7 +28,7 @@ import time
 from contextlib import contextmanager
 from pathlib import Path
 
-from config import BASE, DB_PATH
+from config import BASE, DB_PATH, LOCAL_TZ
 
 STATE_PATH = Path(os.environ.get(
     "RIVIAN_GOVERNOR_STATE", BASE / "governor_state.json"))
@@ -46,9 +46,8 @@ _local = threading.local()
 def _fmt_until(until: float) -> str:
     try:
         from datetime import datetime
-        from zoneinfo import ZoneInfo
         return datetime.fromtimestamp(
-            until, tz=ZoneInfo("America/Los_Angeles")).strftime("%-I:%M %p")
+            until, tz=LOCAL_TZ).strftime("%-I:%M %p")
     except Exception:
         return time.strftime("%H:%M UTC", time.gmtime(until))
 
@@ -117,21 +116,23 @@ def _locked_state():
 # ---------------------------------------------------------------- logging
 
 _log_ready = False
+_log_db = None
 
 
 def _log(caller: str, kind: str, outcome: str, detail: str = "") -> None:
     """Append one row to traffic_log. Never raises."""
-    global _log_ready
+    global _log_ready, _log_db
     try:
         con = sqlite3.connect(DB_PATH, timeout=2)
         try:
             con.execute("PRAGMA busy_timeout = 2000")
-            if not _log_ready:
+            if not _log_ready or _log_db != DB_PATH:
                 con.execute(
                     "CREATE TABLE IF NOT EXISTS traffic_log("
                     "ts INTEGER, caller TEXT, kind TEXT, outcome TEXT,"
                     " detail TEXT)")
                 _log_ready = True
+                _log_db = DB_PATH
             con.execute(
                 "INSERT INTO traffic_log(ts, caller, kind, outcome, detail)"
                 " VALUES (?, ?, ?, ?, ?)",
@@ -174,7 +175,7 @@ def _looks_rate_limited(exc) -> tuple[bool, float | None]:
         return True, _retry_after_s(exc)
     low = blob.lower()
     if "429" in blob or "too many" in low or "rate limit" in low \
-            or "rate_limit" in low or "throttl" in low:
+            or "rate_limit" in low or "ratelimit" in low or "throttl" in low:
         return True, _retry_after_s(exc)
     return False, None
 
