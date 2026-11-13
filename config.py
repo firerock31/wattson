@@ -70,6 +70,7 @@ PROPS = (
     "vehicleMileage",
     "cloudConnection",
     "cabinPreconditioningStatus",
+    "driveMode",
 )
 
 # Adaptive polling tiers (seconds). Reads hit Rivian's cloud cache, not the
