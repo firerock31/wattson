@@ -385,8 +385,9 @@ def _timeline_strip(periods: list[dict], bad: set) -> str:
     day1 = _ldt(t_end).date()
     axis_start = datetime(day0.year, day0.month, day0.day,
                           tzinfo=LOCAL_TZ).timestamp()
-    axis_end = datetime(day1.year, day1.month, day1.day,
-                        tzinfo=LOCAL_TZ).timestamp() + 86400
+    day_end = day1 + timedelta(days=1)
+    axis_end = datetime(day_end.year, day_end.month, day_end.day,
+                        tzinfo=LOCAL_TZ).timestamp()
     span = max(axis_end - axis_start, 3600)
 
     def X(t: int) -> float:
@@ -492,7 +493,7 @@ def _timeline_strip(periods: list[dict], bad: set) -> str:
         lx = X(t)
         lab_w = len(txt) * 6.5
         tx = min(max(lx, lab_w / 2), w - lab_w / 2)
-        if tx - lab_w / 2 < ax_end + 4:
+        if tx - lab_w / 2 < ax_end + 2:
             continue
         parts.append(
             f'<line x1="{lx:.1f}" y1="{axis_y - 4}" x2="{lx:.1f}"'
@@ -2086,14 +2087,15 @@ def generate() -> None:
             '<div class="v amber">-<small> %</small></div>'
             '<div class="s">no data yet</div></a>')
 
-    # Phantom drain trend: period-by-period bars, so "typical" has a visual
-    # anchor. A period over 1.6x the median watts (needs 3+ measured
-    # periods) flags red. Gets the same 1M / 6M / 1Y / All range control
-    # as Pack health: each range recomputes its own average and abnormal
-    # flags. 7N and 1M draw bars with the real watts axis; 6M, 1Y and All
-    # draw a heat strip (one cell per period, weeks as columns, color
-    # intensity = watts draw, abnormal periods stay red) instead of an
-    # unreadable year of thin bars. Averaging into weekly bars was
+    # Phantom drain trend: period-by-period timeline, so "typical" has a
+    # visual anchor. A period over 1.6x the median watts (needs 3+
+    # measured periods) flags red. Gets the same 1M / 6M / 1Y / All range
+    # control as Pack health: each range recomputes its own average and
+    # abnormal flags. 7N and 1M draw a timeline strip (one row, real time
+    # on the x-axis, segment length = duration, color = watts); 6M, 1Y
+    # and All draw a heat strip (one cell per period, weeks as columns,
+    # color intensity = watts draw, abnormal periods stay red) instead of
+    # an unreadable year of thin bars. Averaging into weekly bars was
     # rejected: it could hide a single abnormal period.
     def _trend_range(periods: list[dict], style: str = "bars") -> str:
         measured = [o for o in periods if not o["no_data"]]
