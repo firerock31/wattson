@@ -42,16 +42,12 @@ upload it anywhere to share the demo.
 
 ## What it does
 
-> **New in 0.9.0: Send destination.** Send a place to the car's
-> navigation straight from the dashboard, no Rivian app needed.
-> Search OpenStreetMap by name or address, pick from your saved
-> and recent places, or paste a Google Maps link. An energy
-> pre-check at your real efficiency warns when arrival charge
-> looks tight, and for longer trips the car's own planner
-> previews the route and the charging stops it would add before
-> anything is sent. A send only counts as confirmed when the
-> car reports the route back itself. It all rides your existing
-> signed-in session: no paired key, no Bluetooth.
+> **New in 0.10.0: Phantom drain timeline, traffic governor, climate.**
+> Short ranges draw the drain as a real-time timeline instead of
+> bars, outbound Rivian calls are paced through a shared governor
+> that pauses on rate limits, parked periods with the climate
+> running get their own activity color, and DC cost entry now
+> saves in place.
 
 - **Send destination**, send an address, a saved place, or a pasted map
   link to the car's navigation from the dashboard, with an energy check
@@ -66,22 +62,25 @@ upload it anywhere to share the demo.
 - **Charging log**, sessions with kWh added, your real home electricity cost,
   charge curves, and CSV export
 - **Phantom drain tracking**, idle drain measured between actual drives with
-  watts as the primary metric
+  watts as the primary metric, drawn as a real-time timeline on short ranges,
+  with a running estimate while the car is parked and awake/asleep labels on
+  closed parks
 - **Tire pressure tile**, per-tire pressures in the hero grid, amber/red
   warnings relative to your door-jamb placard pressure
 - **Fuel savings vs gas**, per-session and lifetime savings against a gas
   SUV, priced at each charge day's AAA gas price, with transparent assumptions
-- **Drive history**, the record Rivian never kept
+- **Drive history**, the record Rivian never kept, with a daily activity bar
+  showing driving, charging, awake, deep sleep, and climate
 - **Optional dashboard login**, password-protect your dashboard when exposing
   it through a tunnel
 
 ## Recent updates
 
 See [CHANGELOG.md](CHANGELOG.md) for the full release history. Latest:
-**Phantom drain display honesty**: the drain tile headlines the
-last park's total loss, and parks too small for the car's battery
-gauge to measure no longer get invented rates anywhere on the
-page (0.9.1).
+**Phantom drain timeline, traffic governor, and climate**: short ranges draw
+the drain as a real-time timeline, outbound Rivian calls are paced through a
+shared governor that pauses on rate limits, and parked periods with the
+climate running get their own activity color (0.10.0).
 
 ## Quick start
 
@@ -157,6 +156,9 @@ frequent while driving, backing off when the car sleeps. Sleep detection
 uses the cloud connection state, since Rivian's power and gear fields
 report nothing useful. A lightweight daemon handles the polling on its
 own; nothing needs to wake up every few minutes just to check.
+Outbound Rivian calls go through a shared traffic governor (3 s spacing,
+escalating cooldowns on rate limits), so a rate limit pauses the tracker
+instead of failing it, and the dashboard says so while it waits.
 
 > **Note:** this uses Rivian's unofficial API, which isn't publicly
 > documented and can change without notice. If it breaks, the fix is usually
@@ -183,6 +185,7 @@ hero. (Optional; the layout holds without it.)
 ## Project layout
 
 - `poller.py`, periodic vehicle polling and snapshot capture
+- `governor.py`, shared pacing and cooldowns for outbound Rivian calls
 - `analyze.py`, trips, charging sessions, and overnight drain detection
 - `report.py`, dashboard HTML generation
 - `auth.py`, one-time Rivian account linking
@@ -201,9 +204,9 @@ comparison MPG, times that day's AAA gas price. Home sessions count automaticall
 charges are excluded until you record what you paid.
 
 To record a DC price, click **? add cost** on the charging-log row. A small
-form saves the $/kWh rate and regenerates the dashboard. Editing a
-priced session reopens the form with the current value. Entering `$0.00`
-marks a free session.
+modal saves the $/kWh rate in place and the dashboard updates to show it.
+Editing a priced session reopens the modal with the current value. Entering
+`$0.00` marks a free session.
 
 Use **Export CSV** in the charging log to download all stored charging sessions,
 not just the latest rows shown on the dashboard. Times are UTC; energy, distance,
@@ -226,7 +229,10 @@ Canvas). Rivian API access via the
 library (MIT). The send-destination protocol was reverse
 engineered by
 [walthowd/rivian-gen2-key-poc](https://github.com/walthowd/rivian-gen2-key-poc)
-(MIT); nav.py's header carries the details.
+(MIT); nav.py's header carries the details. Scott Hanselman
+([@shanselman](https://github.com/shanselman)) contributed the
+trip-map memory bound, CSV export, last-poll age, and a run of mobile
+and savings fixes.
 
 ## License
 
