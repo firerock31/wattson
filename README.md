@@ -1,7 +1,7 @@
 # Wattson
 
-**Gary watches your Rivian. Wattson knows it.**
-*A friendly dashboard for your Rivian. Easy to read, useful, and free.*
+**Rivian Gary watches your Rivian. Wattson knows it.**
+A friendly dashboard for your Rivian. Easy to read, useful, and free.
 
 ## Why this exists
 
